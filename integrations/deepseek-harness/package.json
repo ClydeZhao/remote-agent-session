@@ -1,0 +1,31 @@
+{
+  "name": "remote-agent-session-deepseek-harness",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "index.mjs",
+  "engines": {
+    "dsh": "0.2.2-rc.1 || 0.2.2-rc.2",
+    "node": ">=22"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "cordis.patch.yml"
+    }
+  },
+  "scripts": {
+    "test": "node --test bridge.test.mjs interactions.test.mjs lifecycle.test.mjs continued.test.mjs answer-receipts.test.mjs native-message.test.mjs summary.test.mjs"
+  },
+  "files": [
+    "index.mjs",
+    "bridge.mjs",
+    "interactions.mjs",
+    "cordis.patch.yml",
+    "README.md",
+    "continued.mjs",
+    "answer-receipts.mjs",
+    "summary.mjs",
+    "LICENSE"
+  ],
+  "license": "MIT"
+}

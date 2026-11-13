@@ -1,0 +1,25 @@
+#!/usr/bin/env python3
+import json
+import os
+from pathlib import Path
+import sys
+from urllib.parse import urlsplit
+
+root = Path(__file__).resolve().parents[1]
+state = Path(os.environ.get("REMOTE_AGENT_SESSION_DEV_STATE_DIR", root / ".private/dev-cli")).resolve()
+binary = root / "cli/bin/remote-agent-session-dev"
+if any(arg.lstrip("-").split("=", 1)[0] == "state-dir" for arg in sys.argv[1:]):
+    raise SystemExit("Use REMOTE_AGENT_SESSION_DEV_STATE_DIR to select isolated development state")
+if any(arg.lstrip("-").split("=", 1)[0] in ("server", "allow-loopback-http") for arg in sys.argv[1:]):
+    raise SystemExit("Configure the development server separately; this entry cannot change its target")
+try:
+    config = json.loads((state / "config.json").read_text())
+    server = urlsplit(config["server"])
+except (OSError, ValueError, KeyError):
+    raise SystemExit("Configure isolated dev-cli state first; see cli/DEVELOPMENT.md") from None
+if server.scheme != "http" or server.hostname not in ("127.0.0.1", "::1") or not config.get("allow_loopback_http"):
+    raise SystemExit("Development CLI only permits explicit loopback HTTP configuration")
+if not binary.is_file():
+    raise SystemExit("Build the development CLI first; see cli/DEVELOPMENT.md")
+os.environ["REMOTE_AGENT_SESSION_NO_UPDATE_CHECK"] = "1"
+os.execv(binary, [str(binary), "--state-dir", str(state), *sys.argv[1:]])

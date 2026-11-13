@@ -1,0 +1,38 @@
+name: checks
+on:
+  push:
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: cli/go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --project server --frozen --group dev
+      - run: sudo apt-get update && sudo apt-get install -y postgresql
+      - run: uv run pytest tests
+        working-directory: server
+      - run: uv run --project server python -m remote_agent_session.openapi --check
+      - run: python3 tools/generate.py --check
+        working-directory: cli
+      - run: go test ./...
+        working-directory: cli
+      - run: npm test
+        working-directory: integrations/deepseek-harness
+      - run: python3 -m unittest discover -s tools -p 'test_*.py'
+      - run: python3 -m py_compile tools/lifecycle.py tools/build_release.py tools/collect_notices.py
+      - name: Build and install isolated Linux CI artifact
+        shell: bash
+        run: |
+          python3 tools/build_release.py --output "$RUNNER_TEMP/ras-release"
+          mkdir -p "$RUNNER_TEMP/ras-unpacked"
+          tar -xzf "$RUNNER_TEMP/ras-release/"*.tar.gz -C "$RUNNER_TEMP/ras-unpacked"
+          REMOTE_AGENT_SESSION_INSTALL_DIR="$RUNNER_TEMP/ras-installed" sh "$RUNNER_TEMP/ras-unpacked/"*/install/install.sh
+      - name: Verify installed CLI API PostgreSQL boundary fixtures
+        run: '"$RUNNER_TEMP/ras-installed/.venv/bin/python" cli/tools/relay_integration.py --install-root "$RUNNER_TEMP/ras-installed"'

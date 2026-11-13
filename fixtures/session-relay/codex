@@ -1,0 +1,263 @@
+#!/usr/bin/env python3
+import json
+import os
+import sys
+import subprocess
+import shlex
+import time
+from pathlib import Path
+
+if sys.argv[1:] == ["app-server", "daemon", "version"]:
+    print(json.dumps({"status": "stopped"}))
+    raise SystemExit(0)
+
+store = Path(os.environ["REMOTE_AGENT_SESSION_TEST_CODEX_STORE"])
+
+
+def save_state(state):
+    temporary = store.with_name(store.name + "." + str(os.getpid()) + ".tmp")
+    temporary.write_text(json.dumps(state))
+    temporary.replace(store)
+
+
+for line in sys.stdin:
+    request = json.loads(line)
+    if "id" not in request:
+        continue
+    state = (
+        json.loads(store.read_text()) if store.exists() else {"turns": [], "queued": []}
+    )
+    method = request["method"]
+    params = request.get("params", {})
+    result = {}
+    if method == "thread/read":
+        result = {
+            "thread": {
+                "id": params["threadId"],
+                "name": "既有测试会话",
+                "cwd": "/synthetic/project",
+                "source": "cli",
+                "originator": "codex-tui",
+                "status": {
+                    "type": "active"
+                    if state["turns"] and state["turns"][0]["status"] == "inProgress"
+                    else "idle"
+                },
+            }
+        }
+    elif method == "hooks/list":
+        command = os.environ["REMOTE_AGENT_SESSION_TEST_HOOK_COMMAND"]
+        result = {
+            "data": [
+                {
+                    "cwd": params["cwds"][0],
+                    "errors": [],
+                    "hooks": [
+                        {
+                            "eventName": event,
+                            "command": command,
+                            "enabled": True,
+                            "timeoutSec": 310,
+                            "trustStatus": "trusted",
+                            "async": False,
+                            "matcher": matcher,
+                        }
+                        for event, matcher in [
+                            ("permissionRequest", ".*"),
+                            (
+                                "preToolUse",
+                                "(^|[.])(request_user_input|request_user_input_async)$",
+                            ),
+                            (
+                                "preToolUse",
+                                "^mcp__(cua_repl(__|[.])js|data(__|[.])form_elicitation_v2_request)$",
+                            ),
+                        ]
+                    ],
+                }
+            ]
+        }
+    elif method == "thread/start" and params.get("ephemeral"):
+        result = {"thread": {"id": "summary-thread"}}
+    elif method == "turn/start" and params.get("threadId") == "summary-thread":
+        with store.with_name("summary-calls").open("a") as calls:
+            calls.write("model-call\n")
+        store.with_name("summary-started").touch()
+        print(json.dumps({"id":request["id"],"result":{"turn":{"id":"summary-turn","status":"inProgress"}}}),flush=True)
+        deadline = time.monotonic()+25
+        while not store.with_name("release-summary").exists() and time.monotonic()<deadline:
+            time.sleep(0.05)
+        print(json.dumps({"method":"item/completed","params":{"threadId":"summary-thread","item":{"type":"agentMessage","text":"已有结论，无需回复。"}}}),flush=True)
+        print(json.dumps({"method":"turn/completed","params":{"threadId":"summary-thread","turn":{"id":"summary-turn","status":"completed"}}}),flush=True)
+        continue
+    elif method in ("turn/start", "thread/queue/add"):
+        ident = params["clientUserMessageId"]
+        items = [
+            {"type": "userMessage", "clientId": ident},
+            {
+                "type": "agentMessage",
+                "phase": "final_answer",
+                "text": "原会话回复：" + params["input"][0]["text"],
+            },
+        ]
+        if params["input"][0]["text"] == "长回答摘要贯穿验证":
+            items[1]["text"] = "长回答正文：" + "验证结论保持不确定性。"*30
+        if params["input"][0]["text"] == "mixed":
+            items.append({"type": "userMessage", "clientId": "native-local"})
+        state["turns"].insert(
+            0,
+            {
+                "id": "turn-" + ident,
+                "status": "completed",
+                "completedAt": int(time.time()),
+                "itemsView": "full",
+                "items": items,
+            },
+        )
+        result = {
+            "queuedSubmission": {"id": "queue-" + ident, "clientUserMessageId": ident}
+        }
+        if params["input"][0]["text"] in ("异步问答贯穿验证", "多问题异步贯穿验证"):
+            turn = state["turns"][0]
+            turn.update(status="inProgress", completedAt=None)
+            turn["items"] = turn["items"][:1]
+            save_state(state)
+            hook = {
+                "session_id": params["threadId"],
+                "turn_id": turn["id"],
+                "hook_event_name": "PreToolUse",
+                "tool_name": "functions.request_user_input_async",
+                "cwd": "/synthetic/project",
+                "tool_input": {
+                    "questions": [{"title": "选择颜色", "options": ["红色", "绿色"]}]
+                },
+            }
+            response = subprocess.run(
+                shlex.split(os.environ["REMOTE_AGENT_SESSION_TEST_HOOK_COMMAND"]),
+                input=json.dumps(hook),
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            assert response.returncode == 0 and json.loads(response.stdout) == {}
+            turn["items"].append(
+                {
+                    "type": "agentMessage",
+                    "id": "async-colour",
+                    "delivery": "async",
+                    "questions": [{"title": "选择颜色", "options": ["红色", "绿色"]}],
+                }
+            )
+            if params["input"][0]["text"] == "多问题异步贯穿验证":
+                turn["items"][-1]["questions"].append(
+                    {"title": "选择速度", "options": ["慢速", "快速"]}
+                )
+            turn["items"].append(
+                {
+                    "type": "commandExecution",
+                    "id": "independent-work",
+                    "status": "completed",
+                    "command": "synthetic-independent-step",
+                }
+            )
+            state["independent_work_done"] = True
+            state["async_hook_returned"] = True
+        save_state(state)
+    elif method == "turn/steer":
+        turn = state["turns"][0]
+        assert turn["id"] == params["expectedTurnId"] and turn["status"] == "inProgress"
+        text = params["input"][0]["text"]
+        answers = json.loads(
+            text.removeprefix("<send_user_message_question_reply>\n").removesuffix(
+                "\n</send_user_message_question_reply>"
+            )
+        )
+        expected = [
+            {
+                "questionItemId": '["request_user_input_async","async-colour",0]',
+                "question": "选择颜色",
+                "answer": "绿色",
+            }
+        ]
+        question_item = next(
+            item for item in turn["items"] if item.get("delivery") == "async"
+        )
+        if len(question_item["questions"]) == 2:
+            expected.append(
+                {
+                    "questionItemId": '["request_user_input_async","async-colour",1]',
+                    "question": "选择速度",
+                    "answer": "快速",
+                }
+            )
+        assert answers == expected
+        if len(question_item["questions"]) == 2:
+            turn["items"].append(
+                {
+                    "type": "steeringUserMessage",
+                    "status": "accepted",
+                    "clientUserMessageId": params["clientUserMessageId"],
+                    "input": params["input"],
+                }
+            )
+        else:
+            turn["items"].append(
+                {
+                    "type": "userMessage",
+                    "clientId": params["clientUserMessageId"],
+                    "content": params["input"],
+                }
+            )
+        turn["items"].append(
+            {
+                "type": "agentMessage",
+                "phase": "final_answer",
+                "text": "异步回答已关联：绿色；独立工作已完成",
+            }
+        )
+        turn["status"] = "completed"
+        turn["completedAt"] = int(time.time())
+        state["steer_count"] = state.get("steer_count", 0) + 1
+        save_state(state)
+    elif method == "turn/interrupt":
+        store.with_name("unexpected-interrupt").touch()
+        raise RuntimeError("async answer must not interrupt")
+    elif method == "thread/turns/list":
+        if (
+            params.get("itemsView") == "full"
+            and store.with_name("history-unavailable").exists()
+        ):
+            print(
+                json.dumps(
+                    {
+                        "id": request["id"],
+                        "error": {
+                            "code": -32602,
+                            "message": "history temporarily unavailable",
+                        },
+                    }
+                ),
+                flush=True,
+            )
+            continue
+        result = {"data": state["turns"], "nextCursor": None}
+    elif method == "thread/queue/list":
+        if params["threadId"] == os.environ.get(
+            "REMOTE_AGENT_SESSION_TEST_CODEX_SLOW_CANCEL_THREAD"
+        ):
+            store.with_name("slow-cancel-started").touch()
+            time.sleep(8)
+        result = {"data": [], "nextCursor": None}
+    else:
+        if method != "initialize":
+            print(
+                json.dumps(
+                    {
+                        "id": request["id"],
+                        "error": {"code": -32601, "message": "unsupported test method"},
+                    }
+                ),
+                flush=True,
+            )
+            continue
+    print(json.dumps({"id": request["id"], "result": result}), flush=True)

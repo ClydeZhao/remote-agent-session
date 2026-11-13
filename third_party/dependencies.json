@@ -1,0 +1,636 @@
+[
+  {
+    "ecosystem": "python",
+    "name": "alembic",
+    "version": "1.20.1",
+    "license": "MIT"
+  },
+  {
+    "ecosystem": "python",
+    "name": "annotated-doc",
+    "version": "0.0.6",
+    "license": "MIT"
+  },
+  {
+    "ecosystem": "python",
+    "name": "annotated-types",
+    "version": "0.8.0",
+    "license": "MIT"
+  },
+  {
+    "ecosystem": "python",
+    "name": "anyio",
+    "version": "4.16.0",
+    "license": "MIT"
+  },
+  {
+    "ecosystem": "python",
+    "name": "certifi",
+    "version": "2026.10.23",
+    "license": "MPL-2.0"
+  },
+  {
+    "ecosystem": "python",
+    "name": "cffi",
+    "version": "2.1.1",
+    "license": "MIT-0"
+  },
+  {
+    "ecosystem": "python",
+    "name": "charset-normalizer",
+    "version": "3.5.2",
+    "license": "MIT"
+  },
+  {
+    "ecosystem": "python",
+    "name": "click",
+    "version": "8.5.1",
+    "license": "BSD-3-Clause"
+  },
+  {
+    "ecosystem": "python",
+    "name": "cryptography",
+    "version": "50.0.2",
+    "license": "Apache-2.0 OR BSD-3-Clause"
+  },
+  {
+    "ecosystem": "python",
+    "name": "fastapi",
+    "version": "0.162.5",
+    "license": "MIT"
+  },
+  {
+    "ecosystem": "python",
+    "name": "h11",
+    "version": "0.16.0",
+    "license": "MIT"
+  },
+  {
+    "ecosystem": "python",
+    "name": "httpcore",
+    "version": "1.0.9",
+    "license": "BSD-3-Clause"
+  },
+  {
+    "ecosystem": "python",
+    "name": "httpx",
+    "version": "0.28.1",
+    "license": "BSD-3-Clause"
+  },
+  {
+    "ecosystem": "python",
+    "name": "idna",
+    "version": "3.20",
+    "license": "BSD-3-Clause"
+  },
+  {
+    "ecosystem": "python",
+    "name": "iniconfig",
+    "version": "2.3.1",
+    "license": "MIT"
+  },
+  {
+    "ecosystem": "python",
+    "name": "lark-oapi",
+    "version": "1.7.5",
+    "license": "MIT"
+  },
+  {
+    "ecosystem": "python",
+    "name": "Mako",
+    "version": "1.4.3",
+    "license": "MIT"
+  },
+  {
+    "ecosystem": "python",
+    "name": "MarkupSafe",
+    "version": "3.0.4",
+    "license": "BSD-3-Clause"
+  },
+  {
+    "ecosystem": "python",
+    "name": "opentelemetry-api",
+    "version": "1.45.2",
+    "license": "Apache-2.0"
+  },
+  {
+    "ecosystem": "python",
+    "name": "packaging",
+    "version": "26.3",
+    "license": "Apache-2.0 OR BSD-2-Clause"
+  },
+  {
+    "ecosystem": "python",
+    "name": "pluggy",
+    "version": "1.7.0",
+    "license": "MIT"
+  },
+  {
+    "ecosystem": "python",
+    "name": "psycopg",
+    "version": "3.3.9",
+    "license": "LGPL-3.0-only"
+  },
+  {
+    "ecosystem": "python",
+    "name": "psycopg-binary",
+    "version": "3.3.9",
+    "license": "LGPL-3.0-only"
+  },
+  {
+    "ecosystem": "python",
+    "name": "pycparser",
+    "version": "3.12",
+    "license": "BSD-3-Clause"
+  },
+  {
+    "ecosystem": "python",
+    "name": "pycryptodome",
+    "version": "4.4.0",
+    "license": "BSD-2-Clause AND Unlicense AND MIT"
+  },
+  {
+    "ecosystem": "python",
+    "name": "pydantic",
+    "version": "2.14.3",
+    "license": "MIT"
+  },
+  {
+    "ecosystem": "python",
+    "name": "pydantic_core",
+    "version": "2.50.4",
+    "license": "MIT"
+  },
+  {
+    "ecosystem": "python",
+    "name": "Pygments",
+    "version": "2.21.0",
+    "license": "BSD-2-Clause"
+  },
+  {
+    "ecosystem": "python",
+    "name": "pytest",
+    "version": "9.2.0",
+    "license": "MIT"
+  },
+  {
+    "ecosystem": "python",
+    "name": "requests",
+    "version": "2.34.2",
+    "license": "Apache-2.0"
+  },
+  {
+    "ecosystem": "python",
+    "name": "requests-toolbelt",
+    "version": "1.0.0",
+    "license": "Apache 2.0"
+  },
+  {
+    "ecosystem": "python",
+    "name": "ruff",
+    "version": "0.17.5",
+    "license": "MIT"
+  },
+  {
+    "ecosystem": "python",
+    "name": "SQLAlchemy",
+    "version": "2.1.8",
+    "license": "MIT"
+  },
+  {
+    "ecosystem": "python",
+    "name": "starlette",
+    "version": "1.10.0",
+    "license": "BSD-3-Clause"
+  },
+  {
+    "ecosystem": "python",
+    "name": "typing-inspection",
+    "version": "0.4.5",
+    "license": "MIT"
+  },
+  {
+    "ecosystem": "python",
+    "name": "typing_extensions",
+    "version": "4.16.0",
+    "license": "PSF-2.0"
+  },
+  {
+    "ecosystem": "python",
+    "name": "urllib3",
+    "version": "2.8.0",
+    "license": "MIT"
+  },
+  {
+    "ecosystem": "python",
+    "name": "uvicorn",
+    "version": "0.54.0",
+    "license": "BSD-3-Clause"
+  },
+  {
+    "ecosystem": "python",
+    "name": "websockets",
+    "version": "15.0.1",
+    "license": "BSD-3-Clause"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/BurntSushi/toml",
+    "version": "v1.3.2"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/CloudyKit/fastprinter",
+    "version": "v0.0.0-20200109182630-33d98a066a53"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/CloudyKit/jet/v6",
+    "version": "v6.2.0"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/Joker/jade",
+    "version": "v1.1.3"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/RaveNoX/go-jsoncommentstrip",
+    "version": "v1.0.0"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/Shopify/goreferrer",
+    "version": "v0.0.0-20220729165902-8cddb4f5de06"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/andybalholm/brotli",
+    "version": "v1.0.5"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/apapsch/go-jsonmerge/v2",
+    "version": "v2.0.0"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/aymerick/douceur",
+    "version": "v0.2.0"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/bmatcuk/doublestar",
+    "version": "v1.1.1"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/bytedance/sonic",
+    "version": "v1.10.0-rc3"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/chenzhuoyu/base64x",
+    "version": "v0.0.0-20230717121745-296ad89f973d"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/chenzhuoyu/iasm",
+    "version": "v0.9.0"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/coder/websocket",
+    "version": "v1.8.14"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/davecgh/go-spew",
+    "version": "v1.1.1"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/fatih/structs",
+    "version": "v1.1.0"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/flosch/pongo2/v4",
+    "version": "v4.0.2"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/gabriel-vasile/mimetype",
+    "version": "v1.4.2"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/gin-contrib/sse",
+    "version": "v0.1.0"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/gin-gonic/gin",
+    "version": "v1.9.1"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/go-playground/locales",
+    "version": "v0.14.1"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/go-playground/universal-translator",
+    "version": "v0.18.1"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/go-playground/validator/v10",
+    "version": "v10.14.1"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/goccy/go-json",
+    "version": "v0.10.2"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/golang/snappy",
+    "version": "v0.0.4"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/gomarkdown/markdown",
+    "version": "v0.0.0-20230922112808-5421fefb8386"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/google/uuid",
+    "version": "v1.5.0"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/gorilla/css",
+    "version": "v1.0.0"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/iris-contrib/schema",
+    "version": "v0.0.6"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/josharian/intern",
+    "version": "v1.0.0"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/json-iterator/go",
+    "version": "v1.1.12"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/juju/gnuflag",
+    "version": "v0.0.0-20171113085948-2ce1bb71843d"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/kataras/blocks",
+    "version": "v0.0.7"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/kataras/golog",
+    "version": "v0.1.9"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/kataras/iris/v12",
+    "version": "v12.2.6-0.20230908161203-24ba4e8933b9"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/kataras/pio",
+    "version": "v0.0.12"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/kataras/sitemap",
+    "version": "v0.0.6"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/kataras/tunnel",
+    "version": "v0.0.4"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/klauspost/compress",
+    "version": "v1.16.7"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/klauspost/cpuid/v2",
+    "version": "v2.2.5"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/labstack/echo/v4",
+    "version": "v4.11.4"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/labstack/gommon",
+    "version": "v0.4.2"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/leodido/go-urn",
+    "version": "v1.2.4"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/mailgun/raymond/v2",
+    "version": "v2.0.48"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/mailru/easyjson",
+    "version": "v0.7.7"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/mattn/go-colorable",
+    "version": "v0.1.13"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/mattn/go-isatty",
+    "version": "v0.0.20"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/microcosm-cc/bluemonday",
+    "version": "v1.0.25"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/modern-go/concurrent",
+    "version": "v0.0.0-20180306012644-bacd9c7ef1dd"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/modern-go/reflect2",
+    "version": "v1.0.2"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/oapi-codegen/runtime",
+    "version": "v1.1.2"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/pelletier/go-toml/v2",
+    "version": "v2.0.9"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/pmezard/go-difflib",
+    "version": "v1.0.0"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/russross/blackfriday/v2",
+    "version": "v2.1.0"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/schollz/closestmatch",
+    "version": "v2.1.0+incompatible"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/sirupsen/logrus",
+    "version": "v1.8.1"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/spkg/bom",
+    "version": "v0.0.0-20160624110644-59b7046e48ad"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/stretchr/objx",
+    "version": "v0.1.0"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/stretchr/testify",
+    "version": "v1.8.4"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/tdewolff/minify/v2",
+    "version": "v2.12.9"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/tdewolff/parse/v2",
+    "version": "v2.6.8"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/twitchyliquid64/golang-asm",
+    "version": "v0.15.1"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/ugorji/go/codec",
+    "version": "v1.2.11"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/valyala/bytebufferpool",
+    "version": "v1.0.0"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/valyala/fasttemplate",
+    "version": "v1.2.2"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/vmihailenco/msgpack/v5",
+    "version": "v5.3.5"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/vmihailenco/tagparser/v2",
+    "version": "v2.0.0"
+  },
+  {
+    "ecosystem": "go",
+    "name": "github.com/yosssi/ace",
+    "version": "v0.0.5"
+  },
+  {
+    "ecosystem": "go",
+    "name": "golang.org/x/arch",
+    "version": "v0.4.0"
+  },
+  {
+    "ecosystem": "go",
+    "name": "golang.org/x/crypto",
+    "version": "v0.17.0"
+  },
+  {
+    "ecosystem": "go",
+    "name": "golang.org/x/net",
+    "version": "v0.19.0"
+  },
+  {
+    "ecosystem": "go",
+    "name": "golang.org/x/sys",
+    "version": "v0.37.0"
+  },
+  {
+    "ecosystem": "go",
+    "name": "golang.org/x/term",
+    "version": "v0.36.0"
+  },
+  {
+    "ecosystem": "go",
+    "name": "golang.org/x/text",
+    "version": "v0.14.0"
+  },
+  {
+    "ecosystem": "go",
+    "name": "golang.org/x/time",
+    "version": "v0.5.0"
+  },
+  {
+    "ecosystem": "go",
+    "name": "golang.org/x/xerrors",
+    "version": "v0.0.0-20220411194840-2f41105eb62f"
+  },
+  {
+    "ecosystem": "go",
+    "name": "google.golang.org/protobuf",
+    "version": "v1.31.0"
+  },
+  {
+    "ecosystem": "go",
+    "name": "gopkg.in/check.v1",
+    "version": "v0.0.0-20161208181325-20d25e280405"
+  },
+  {
+    "ecosystem": "go",
+    "name": "gopkg.in/ini.v1",
+    "version": "v1.67.0"
+  },
+  {
+    "ecosystem": "go",
+    "name": "gopkg.in/yaml.v3",
+    "version": "v3.0.1"
+  }
+]
