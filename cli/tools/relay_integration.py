@@ -18,6 +18,7 @@ import httpx
 
 from remote_agent_session.application import Application
 from remote_agent_session.settings import Settings
+from relay_process import capture_linux_bridge, terminate_linux_bridge, wait_linux_bridges
 
 ROOT = Path(__file__).resolve().parents[2]
 parser = argparse.ArgumentParser(description="Installed CLI/API/PostgreSQL relay regression with host and Feishu boundaries substituted")
@@ -25,6 +26,7 @@ parser.add_argument("--install-root", type=Path, required=True)
 args = parser.parse_args()
 INSTALL = args.install_root.resolve()
 CLI = INSTALL / "bin/remote-agent-session"
+CONTROLLER_READINESS_TIMEOUT = 10
 if not CLI.is_file() or not (INSTALL / "tools/lifecycle.py").is_file():
     raise SystemExit("Complete isolated installation required")
 
@@ -245,9 +247,16 @@ def main():
                 rows = subprocess.run(["ps","-axo","pid=,args="],capture_output=True,text=True).stdout.splitlines()
                 targets = [int(row.strip().split()[0]) for row in rows if str(user) in row and "session _serve" in row]
                 assert targets
-                for pid in targets:
-                    os.kill(pid,15)
-                until(lambda: all(not Path(f"/proc/{pid}").exists() for pid in targets),timeout=2) if sys.platform.startswith("linux") else time.sleep(0.5)
+                if sys.platform.startswith("linux"):
+                    processes = [capture_linux_bridge(pid,user) for pid in targets]
+                    processes = [process for process in processes if process is not None]
+                    for process in processes:
+                        terminate_linux_bridge(process)
+                    wait_linux_bridges(processes,user / ".relay-lock",timeout=CONTROLLER_READINESS_TIMEOUT)
+                else:
+                    for pid in targets:
+                        os.kill(pid,15)
+                    time.sleep(0.5)
             pause_claims.set()
             incoming("长回答摘要贯穿验证")
             def pending_summary():
@@ -505,9 +514,19 @@ def main():
             processes = subprocess.run(
                 ["ps", "-axo", "pid=,args="], capture_output=True, text=True
             ).stdout
+            stopped = []
             for line in processes.splitlines():
                 if str(user) in line and "session _serve" in line:
-                    os.kill(int(line.strip().split()[0]), 15)
+                    pid = int(line.strip().split()[0])
+                    if sys.platform.startswith("linux"):
+                        process = capture_linux_bridge(pid,user)
+                        if process is not None:
+                            stopped.append(process)
+                            terminate_linux_bridge(process)
+                    else:
+                        os.kill(pid,15)
+            if sys.platform.startswith("linux") and (user / ".relay-lock").exists():
+                wait_linux_bridges(stopped,user / ".relay-lock",timeout=CONTROLLER_READINESS_TIMEOUT)
             if started:
                 driver("stop")
                 shutil.rmtree(service)

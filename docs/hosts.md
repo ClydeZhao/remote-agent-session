@@ -6,6 +6,8 @@ Run setup in the exact conversation you want to continue. A readable history fil
 
 Use `remote-agent-session session attach --agent codex` from the original session. Review and trust only the hooks belonging to this installation when requested. If the current terminal conversation is not loaded into the shared app-server backend, preserve its ID and follow the CLI's supported reconnect instructions. Do not resume it in a second executor while the original client is running.
 
+Other blocking `PermissionRequest` hooks, such as CodeIsland, can independently keep native execution waiting after Feishu approval has been accepted. If execution remains gated, inspect the original host’s pending approval and hook configuration, then choose the intended approval route there. Nonblocking or inactive hooks can coexist. The installer does not disable other hooks or bypass native approvals.
+
 The integration uses evolving Codex IPC/control APIs. Check the [compatibility boundary](compatibility.md). Local readiness, source identity, actual input execution and a received Feishu answer each require verification.
 
 ## DeepSeek Harness

@@ -26,6 +26,7 @@ jobs:
       - run: npm test
         working-directory: integrations/deepseek-harness
       - run: python3 -m unittest discover -s tools -p 'test_*.py'
+      - run: python3 -m unittest discover -s cli/tools -p 'test_*.py' -v
       - run: python3 -m py_compile tools/lifecycle.py tools/build_release.py tools/collect_notices.py
       - name: Build and install isolated Linux CI artifact
         shell: bash
