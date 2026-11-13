@@ -30,7 +30,8 @@ def create_app(settings: Settings | None = None, *, schema_only: bool = False):
         title="Remote Agent Session API",
         version=VERSION,
         description="Explicit offline or live service. Inspect simulated flags on results. Bearer device authentication; Idempotency-Key is scoped to the authenticated user.",
-        responses={n: {"model": ErrorBody} for n in (401, 403, 404, 409, 422, 429, 503, 504)},
+        responses={n: {"model": ErrorBody} for n in (401, 403, 404, 409, 422, 429, 503, 504)}
+        | {422: {"model": ErrorBody, "description": "Unprocessable Entity"}},
     )
 
     @app.middleware("http")
