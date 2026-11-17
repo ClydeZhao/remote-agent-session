@@ -1,10 +1,10 @@
 import os
 import secrets
 import socket as networking
-from urllib.parse import quote
 import subprocess
 import tempfile
 from pathlib import Path
+from urllib.parse import quote
 
 import pytest
 from cryptography.fernet import Fernet

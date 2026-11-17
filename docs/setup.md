@@ -57,7 +57,14 @@ $Acl.SetAccessRuleProtection($true, $false)
 $Rule = [Security.AccessControl.FileSystemAccessRule]::new($Identity.User, 'FullControl', 'ContainerInherit,ObjectInherit', 'None', 'Allow')
 $Acl.AddAccessRule($Rule)
 Set-Acl -LiteralPath $Directory.FullName -AclObject $Acl
-notepad (Join-Path $ServiceState 'feishu.env')
+$ConfigPath = Join-Path $ServiceState 'feishu.env'
+Start-Process notepad.exe -ArgumentList ('"' + $ConfigPath + '"') -Wait
+$FileAcl = [Security.AccessControl.FileSecurity]::new()
+$FileAcl.SetOwner($Identity.User)
+$FileAcl.SetAccessRuleProtection($true, $false)
+$FileRule = [Security.AccessControl.FileSystemAccessRule]::new($Identity.User, 'FullControl', 'Allow')
+$FileAcl.AddAccessRule($FileRule)
+Set-Acl -LiteralPath $ConfigPath -AclObject $FileAcl
 ```
 
-Write the same literal `LARK_APP_ID` and `LARK_APP_SECRET` fields described above. The file inherits the private ACL. For an alternate service root export `REMOTE_AGENT_SESSION_SERVICE_STATE_DIR` consistently. Keep client state, service state, installation and Codex home separate. Same-user processes and administrators remain outside the isolation guarantee. Windows loopback database authentication does not authorize remote network access.
+Write the same literal `LARK_APP_ID` and `LARK_APP_SECRET` fields described above, save the file, and close the editor. The remaining commands set its owner and protected current-user-only ACL explicitly. After editing the file again, reapply the file ACL commands before running doctor or starting live mode; editors can replace the file and change its ACL. For an alternate service root export `REMOTE_AGENT_SESSION_SERVICE_STATE_DIR` consistently. Keep client state, service state, installation and Codex home separate. Same-user processes and administrators remain outside the isolation guarantee. Windows loopback database authentication does not authorize remote network access.

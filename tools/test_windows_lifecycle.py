@@ -110,23 +110,36 @@ class NativeWindowsTests(unittest.TestCase):
     def test_current_user_acl_rejects_an_added_everyone_grant(self):
         with tempfile.TemporaryDirectory() as temporary:
             state = windows.private_dir(Path(temporary) / "private")
-            path = state / ("a" * 64)
-            windows.private_file(path, b("a" * 64))
+            path = state / "secret"
+            windows.private_file(path, b"secret")
             windows.secure_path(path)
             subprocess.run(["icacls", str(path), "/grant", "*S-1-1-0:R"], check=True, stdout=subprocess.DEVNULL)
             with self.assertRaisesRegex(RuntimeError, "current-user-only"):
                 windows.secure_path(path)
 
-    def test_documented_editor_configuration_protects_existing_private_inheritance(self):
+    def test_documented_editor_configuration_sets_private_file_security(self):
         with tempfile.TemporaryDirectory() as temporary:
             state = windows.private_dir(Path(temporary) / "private")
             config = state / "feishu.env"
             config.write_text("LARK_APP_ID=synthetic_app\nLARK_APP_SECRET=synthetic_secret\n")
-            with self.assertRaisesRegex(RuntimeError, "protected current-user-only"):
-                windows.secure_path(config)
+            script = """
+$ErrorActionPreference = 'Stop'
+$ConfigPath = $env:RAS_TEST_CONFIG
+$Identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+$FileAcl = [Security.AccessControl.FileSecurity]::new()
+$FileAcl.SetOwner($Identity.User)
+$FileAcl.SetAccessRuleProtection($true, $false)
+$FileRule = [Security.AccessControl.FileSystemAccessRule]::new($Identity.User, 'FullControl', 'Allow')
+$FileAcl.AddAccessRule($FileRule)
+Set-Acl -LiteralPath $ConfigPath -AclObject $FileAcl
+"""
+            subprocess.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script], env=dict(os.environ, RAS_TEST_CONFIG=str(config)), check=True, capture_output=True, text=True)
             self.assertEqual(windows.config_app(state, "live"), "synthetic_app")
             windows.secure_path(config)
             self.assertIn("synthetic_secret", config.read_text())
+            subprocess.run(["icacls", str(config), "/grant", "*S-1-1-0:R"], check=True, stdout=subprocess.DEVNULL)
+            with self.assertRaisesRegex(RuntimeError, "current-user-only"):
+                windows.config_app(state, "live")
 
     def test_loopback_credentials_are_private_and_stable(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -164,6 +177,7 @@ class NativeWindowsTests(unittest.TestCase):
                 supervisor.wait()
             if handle:
                 api.CloseHandle(handle)
+            supervisor.stdout.close()
 
 
 if __name__ == "__main__":

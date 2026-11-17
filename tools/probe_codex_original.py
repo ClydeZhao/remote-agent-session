@@ -337,7 +337,7 @@ def probe_tui(args, env, endpoint, work, client):
             try:
                 turns = client.call("thread/turns/list", {"threadId": thread, "itemsView": "full", "limit": 50})["data"]
             except RuntimeError as error:
-                if "not materialized yet" not in str(error):
+                if not any(message in str(error) for message in ("not materialized yet", "paginated_threads is not supported yet")):
                     raise
                 time.sleep(0.2)
                 continue
