@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 import argparse
+import os
 import base64
-import fcntl
+if os.name != "nt":
+    import fcntl
 import hashlib
 import json
-import os
 from pathlib import Path
 import plistlib
 import shutil
@@ -592,6 +593,11 @@ def main():
     except Exception as exc:
         print(json.dumps({"error": str(exc)}), file=sys.stderr)
         sys.exit(1)
+
+
+if os.name == "nt":
+    import windows_lifecycle
+    windows_lifecycle.install(globals())
 
 
 if __name__ == "__main__":

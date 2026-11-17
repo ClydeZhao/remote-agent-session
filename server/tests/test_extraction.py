@@ -1,3 +1,5 @@
+import os
+
 from cryptography.fernet import Fernet
 
 from remote_agent_session.api import create_app
@@ -20,10 +22,16 @@ def test_contract_only_exposes_identity_and_session_relay():
 def test_live_settings_have_no_hpc_or_shared_configuration(tmp_path, monkeypatch):
     key = tmp_path / "key"
     key.write_bytes(Fernet.generate_key())
-    key.chmod(0o600)
     feishu = tmp_path / "feishu.env"
     feishu.write_text("LARK_APP_ID=synthetic\nLARK_APP_SECRET=synthetic-secret\n")
-    feishu.chmod(0o600)
+    if os.name == "nt":
+        from remote_agent_session.windows_security import secure_path
+
+        secure_path(key, create=True)
+        secure_path(feishu, create=True)
+    else:
+        key.chmod(0o600)
+        feishu.chmod(0o600)
     for name, value in {
         "MODE": "live",
         "DATABASE_URL": "postgresql://example.invalid/test",

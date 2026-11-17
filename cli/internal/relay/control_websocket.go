@@ -7,7 +7,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"path/filepath"
 	"time"
 
 	"github.com/coder/websocket"
@@ -20,16 +19,11 @@ type controlWebSocket struct {
 }
 
 func openControlSocket(ctx context.Context, path string) (*Codex, error) {
-	if !filepath.IsAbs(path) {
-		return nil, ErrInterruptUnavailable
-	}
-	resolved, err := filepath.EvalSymlinks(path)
+	resolved, release, err := prepareControlSocket(path)
 	if err != nil {
-		return nil, ErrInterruptUnavailable
-	}
-	if err = validateControlSocket(resolved); err != nil {
 		return nil, err
 	}
+	defer release()
 	transport := &http.Transport{DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 		return (&net.Dialer{}).DialContext(ctx, "unix", resolved)
 	}}

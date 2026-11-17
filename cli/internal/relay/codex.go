@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -172,6 +173,9 @@ func OpenCodex(ctx context.Context, binary string) (*Codex, error) {
 	}
 	if socket := os.Getenv("REMOTE_AGENT_SESSION_CODEX_SOCKET"); socket != "" {
 		return openControlSocket(ctx, socket)
+	}
+	if runtime.GOOS == "windows" {
+		return nil, errors.New("Windows Codex 原会话连接需要显式设置 REMOTE_AGENT_SESSION_CODEX_SOCKET，并使用 codex --remote 接入同一后台")
 	}
 	return openIsolatedCodex(ctx, binary)
 }

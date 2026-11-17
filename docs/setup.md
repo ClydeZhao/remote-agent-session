@@ -32,8 +32,39 @@ The receiver connects outbound; no public IP, tunnel, domain or inbound web port
 
 The client directory defaults to `~/.remote-agent-session`. Keep the backend and client roots separate: equality, ancestors, descendants and symlink aliases are rejected for known client roots and registered DSH client grants. Never grant the backend directory or a common parent to an Agent. The client permission planner also checks the fixed private `~/.remote-agent-session-runtime/service-roots.json` registry before offering/applying a write grant, including custom service roots started from an earlier shell. Granted client roots are likewise recorded in fixed `client-roots.json` before native permission changes, so a later service startup does not depend on the original custom `DSH_HOME` still being exported. Registered roots remain protected after stop or grant removal while historical data/grants may remain. Pre-registry candidates require the explicit profile metadata refresh described in [migration](operations.md#migrating-an-earlier-combined-directory). These directories share an OS user; this separation does not create read isolation from processes already allowed to read that user's home.
 
-The API listens on `127.0.0.1:18481`; authenticated routes retain device bearer authentication. PostgreSQL accepts only Unix-socket connections inside the private state directory. Its local trust authentication is limited by filesystem permissions; processes running as the same OS user can access this data. The local service is not a sandbox against that user.
+The API listens on `127.0.0.1:18481`; authenticated routes retain device bearer authentication. On macOS/Linux PostgreSQL accepts only Unix-socket connections inside the private state directory. On Windows it uses an owned loopback listener with a generated private password and SCRAM authentication. Unix local trust authentication is limited by filesystem permissions; processes running as the same OS user can access this data. The local service is not a sandbox against that user.
 
 An offline development start is `remote-agent-session start --mode offline`. It does not connect to Feishu and simulated results do not establish real delivery. Stop it before starting live mode. Host setup remains a separate step.
 
 Live inbound messages require a valid Feishu creation timestamp and are rejected when older than five minutes or more than thirty seconds ahead of the local clock. Keep the computer clock synchronized. After an outage, resend the intended instruction explicitly when the service is ready; do not assume Feishu will replay every missed event. Old approval cards remain subject to their original expiry and binding checks.
+
+## Windows prerequisites and private configuration
+
+Use native Windows PowerShell or PowerShell 7 as your ordinary user, without elevation. Install native Python 3.11+ and PostgreSQL 15+ tools. Put the PostgreSQL tools on this terminal's PATH or set `$env:REMOTE_AGENT_SESSION_PG_BIN = 'C:\Program Files\PostgreSQL\15\bin'`; retain the setting in every lifecycle terminal. Do not enable or modify a system PostgreSQL service. Source installations need Go 1.25+ matching `cli/go.mod`. Use a local NTFS directory: network shares, WSL paths and filesystems without Windows ACLs are outside this workflow.
+
+Run `.\install\install.ps1` from a checked-out source tree or extracted native Windows release. Set `$env:REMOTE_AGENT_SESSION_PYTHON` to a specific native Python executable or `$env:REMOTE_AGENT_SESSION_INSTALL_DIR` to a fresh directory when needed. The installer refuses existing destinations, creates an owner-only inherited ACL and installs pinned backend requirements. Use the printed executable path, or add its `bin` directory to this terminal's PATH explicitly. No shell profile, user environment or existing host configuration is changed.
+
+Before writing `feishu.env`, create and protect its separate service directory in PowerShell. This ACL applies only to the new product directory, never to the user's home:
+
+```powershell
+$ServiceState = Join-Path $HOME '.remote-agent-session-service'
+if (Test-Path -LiteralPath $ServiceState) { throw 'Review the existing service directory instead of replacing its ACL.' }
+$Directory = New-Item -ItemType Directory -Path $ServiceState
+$Identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+$Acl = [Security.AccessControl.DirectorySecurity]::new()
+$Acl.SetOwner($Identity.User)
+$Acl.SetAccessRuleProtection($true, $false)
+$Rule = [Security.AccessControl.FileSystemAccessRule]::new($Identity.User, 'FullControl', 'ContainerInherit,ObjectInherit', 'None', 'Allow')
+$Acl.AddAccessRule($Rule)
+Set-Acl -LiteralPath $Directory.FullName -AclObject $Acl
+$ConfigPath = Join-Path $ServiceState 'feishu.env'
+Start-Process notepad.exe -ArgumentList ('"' + $ConfigPath + '"') -Wait
+$FileAcl = [Security.AccessControl.FileSecurity]::new()
+$FileAcl.SetOwner($Identity.User)
+$FileAcl.SetAccessRuleProtection($true, $false)
+$FileRule = [Security.AccessControl.FileSystemAccessRule]::new($Identity.User, 'FullControl', 'Allow')
+$FileAcl.AddAccessRule($FileRule)
+Set-Acl -LiteralPath $ConfigPath -AclObject $FileAcl
+```
+
+Write the same literal `LARK_APP_ID` and `LARK_APP_SECRET` fields described above, save the file, and close the editor. The remaining commands set its owner and protected current-user-only ACL explicitly. After editing the file again, reapply the file ACL commands before running doctor or starting live mode; editors can replace the file and change its ACL. For an alternate service root export `REMOTE_AGENT_SESSION_SERVICE_STATE_DIR` consistently. Keep client state, service state, installation and Codex home separate. Same-user processes and administrators remain outside the isolation guarantee. Windows loopback database authentication does not authorize remote network access.

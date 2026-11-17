@@ -27,6 +27,7 @@ func TestDefaultOwnerDiscoveryIgnoresCreationClient(t *testing.T) {
 		{"explicit_loaded", "thread", "/test", "idle", true, true},
 		{"explicit_unloaded", "thread", "/test", "notLoaded", false, true},
 		{"explicit_missing_status", "thread", "/test", "", false, true},
+		{"explicit_unknown_status", "thread", "/test", "newUnknownStatus", false, true},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			dir, err := os.MkdirTemp("/tmp", "bb-owner-")

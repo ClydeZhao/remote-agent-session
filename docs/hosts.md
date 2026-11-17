@@ -38,3 +38,36 @@ remote-agent-session session attach --agent deepseek-harness
 Use the original `DSH_SESSION_ID` or an explicit user-selected `--session`; never guess the latest session. Keep the original `DSH_HOME`. Plugin checks do not establish Feishu login or pairing. The plugin controls the loaded original owner and must not start a replacement executor.
 
 To revoke owned directory permissions, detach first, request `session plugin remove --agent deepseek-harness --profile desktop --permissions`, review/apply its returned command and reload. Remove the plugin separately without `--permissions` only when no profile needs it. Preserve pre-existing roots and other owners.
+
+## Windows native Codex CLI
+
+Only a native Codex CLI session already running on an explicitly shared foreground app-server is supported. Codex Desktop, standalone CLI executors, DeepSeek Harness and WSL/native mixing are excluded on Windows. Never resume an active standalone conversation in a second executor to manufacture an attachment. Close its original executor deliberately before any supported migration, and preserve the user-selected session ID.
+
+Use ordinary, non-elevated terminals. Select one Codex home containing the intended authentication/configuration and a short local socket path (canonical length below 108 bytes). Let Codex create its `app-server-control` parent with the correct private Windows ACL; do not pre-create a generic inherited-ACL socket directory. In terminal A, set both values explicitly and keep the app-server running in the foreground:
+
+```powershell
+$env:CODEX_HOME = Join-Path $HOME '.codex'
+$env:REMOTE_AGENT_SESSION_CODEX_SOCKET = Join-Path $env:CODEX_HOME 'app-server-control\app-server-control.sock'
+codex app-server --listen "unix://$env:REMOTE_AGENT_SESSION_CODEX_SOCKET"
+```
+
+In terminal B, set the identical `CODEX_HOME` and `REMOTE_AGENT_SESSION_CODEX_SOCKET` values before starting the original conversation:
+
+```powershell
+$env:CODEX_HOME = Join-Path $HOME '.codex'
+$env:REMOTE_AGENT_SESSION_CODEX_SOCKET = Join-Path $env:CODEX_HOME 'app-server-control\app-server-control.sock'
+codex --remote "unix://$env:REMOTE_AGENT_SESSION_CODEX_SOCKET"
+```
+
+The host and relay must use the same Windows user, native Codex executable, Codex home and socket endpoint. Do not expose the app-server over a public or unauthenticated network listener. The relay deliberately refuses Windows auto-discovery and isolated `--stdio` fallback. A socket left by another process or installation is not permission to delete or replace it; investigate its owner first.
+
+Start the local relay service and log in as described in [operations](operations.md#windows-operation). In the exact original Codex conversation, ask the Agent to run:
+
+```powershell
+remote-agent-session.exe session attach --agent codex
+remote-agent-session.exe session status
+```
+
+If attaching from a separate terminal, export the same two variables there and supply `--session` with the exact original session ID explicitly selected by the user. `CODEX_THREAD_ID` from the original conversation may identify that conversation; a recently modified history file does not. The shared app-server must already own that thread. Environment variables set in another terminal do not propagate into an existing host or relay process: set them before launching each one, and detach/restart the owned relay after changing endpoints.
+
+Review and trust only installation-owned hooks when Codex requests it. Keep the original native sandbox and task approvals; no Full Access, home-directory write grant or global approval bypass is required. Verify original-session identity, local input execution, native approval decisions and actual Feishu receipt separately. Automated transport/CI tests do not establish acceptance of an installed native Codex version or phone delivery.

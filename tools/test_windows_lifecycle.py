@@ -1,0 +1,187 @@
+import importlib.util
+import json
+import os
+from pathlib import Path
+import socket
+import subprocess
+import sys
+import tempfile
+import threading
+import unittest
+from unittest.mock import patch
+
+SPEC = importlib.util.spec_from_file_location("windows_lifecycle", Path(__file__).with_name("windows_lifecycle.py"))
+windows = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(windows)
+LIFECYCLE_SPEC = importlib.util.spec_from_file_location("base_lifecycle", Path(__file__).with_name("lifecycle.py"))
+lifecycle = importlib.util.module_from_spec(LIFECYCLE_SPEC)
+LIFECYCLE_SPEC.loader.exec_module(lifecycle)
+windows.control_reply = lifecycle.control_reply
+windows.canonical = lifecycle.canonical
+
+
+class ControlTests(unittest.TestCase):
+    def test_unauthenticated_control_cannot_read_status_or_stop(self):
+        status = {"running": True, "pid": 12}
+        owner = Path(__file__).resolve().parent
+        for envelope in ({"payload": "status"}, {"token": "wrong", "payload": {"protocol": 1, "command": "stop", "intent": "explicit-user-stop"}}, []):
+            self.assertEqual(windows.authenticated_reply(json.dumps(envelope), ("a" * 64), status, owner), (None, False))
+        reply, stopped = windows.authenticated_reply(json.dumps({"token": ("a" * 64), "payload": "status"}), ("a" * 64), status, owner)
+        self.assertTrue(reply["running"])
+        self.assertFalse(stopped)
+
+    def test_malformed_authentication_keeps_loopback_listener_available(self):
+        token = "a" * 64
+        status = {"running": True, "instance_id": "original"}
+        owner = Path(__file__).resolve().parent
+        malformed = [json.dumps({"token": value, "payload": "status"}) for value in ("é", "é" * 64, "\ud800" * 64, "f" * 63, "g" * 64, None, [], {})]
+        malformed.extend(("[" * 2000 + "]" * 2000, "{invalid"))
+        payloads = malformed + [json.dumps({"token": token, "payload": "status"})]
+        with socket.socket() as server:
+            server.bind(("127.0.0.1", 0))
+            server.listen(1)
+            server.settimeout(3)
+            failures = []
+            def serve():
+                try:
+                    for _ in payloads:
+                        with server.accept()[0] as client:
+                            client.settimeout(3)
+                            payload = b""
+                            while b"\n" not in payload and len(payload) < 16384:
+                                chunk = client.recv(16384 - len(payload))
+                                if not chunk:
+                                    break
+                                payload += chunk
+                            reply, stopped = windows.authenticated_reply(payload.decode(), token, status, owner)
+                            if reply is not None:
+                                client.sendall(json.dumps(reply).encode())
+                except Exception as exc:
+                    failures.append(exc)
+            worker = threading.Thread(target=serve)
+            worker.start()
+            try:
+                for index, payload in enumerate(payloads):
+                    with socket.create_connection(server.getsockname(), timeout=3) as client:
+                        client.sendall((payload + "\n").encode())
+                        reply = client.recv(8192)
+                    if index < len(malformed):
+                        self.assertEqual(reply, b"")
+                    else:
+                        self.assertTrue(json.loads(reply)["running"])
+            finally:
+                worker.join(timeout=5)
+            self.assertFalse(worker.is_alive())
+            self.assertEqual(failures, [])
+
+    def test_authenticated_stop_preserves_installation_ownership(self):
+        owner = Path(__file__).resolve().parent
+        for expected, accepted in ((str(owner), True), (str(owner.parent), False)):
+            payload = {"token": ("a" * 64), "payload": {"protocol": 1, "command": "stop-owned", "expected_installation": expected}}
+            reply, stopped = windows.authenticated_reply(json.dumps(payload), ("a" * 64), {"running": True}, owner)
+            self.assertEqual(stopped, accepted)
+            self.assertEqual(reply["stop_accepted"], accepted)
+
+    def test_request_checks_authenticated_instance_using_real_loopback(self):
+        with socket.socket() as server:
+            server.bind(("127.0.0.1", 0))
+            server.listen(1)
+            received = []
+            def serve():
+                with server.accept()[0] as client:
+                    received.append(json.loads(client.recv(8192)))
+                    client.sendall(b'{"running":true,"instance_id":"replacement"}')
+            worker = threading.Thread(target=serve)
+            worker.start()
+            with patch.object(windows, "paths", return_value=(None, Path("ignored"), None)), patch.object(windows, "read_endpoint", return_value={"port": server.getsockname()[1], "token": "private", "instance_id": "original"}):
+                with self.assertRaisesRegex(ValueError, "instance mismatch"):
+                    windows.request(Path("state"), "status")
+            worker.join(timeout=3)
+            self.assertEqual(received, [{"token": "private", "payload": "status"}])
+
+    def test_autostart_boundary(self):
+        with self.assertRaisesRegex(RuntimeError, "not supported"):
+            windows.autostart(Path("state"), "offline", 18481, False)
+        self.assertEqual(windows.autostart(Path("state"), "offline", 18481, True), {"autostart": False})
+
+
+@unittest.skipUnless(os.name == "nt", "Native Windows ACL and process boundary")
+class NativeWindowsTests(unittest.TestCase):
+    def test_current_user_acl_rejects_an_added_everyone_grant(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            state = windows.private_dir(Path(temporary) / "private")
+            path = state / "secret"
+            windows.private_file(path, b"secret")
+            windows.secure_path(path)
+            subprocess.run(["icacls", str(path), "/grant", "*S-1-1-0:R"], check=True, stdout=subprocess.DEVNULL)
+            with self.assertRaisesRegex(RuntimeError, "current-user-only"):
+                windows.secure_path(path)
+
+    def test_documented_editor_configuration_sets_private_file_security(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            state = windows.private_dir(Path(temporary) / "private")
+            config = state / "feishu.env"
+            config.write_text("LARK_APP_ID=synthetic_app\nLARK_APP_SECRET=synthetic_secret\n")
+            script = """
+$ErrorActionPreference = 'Stop'
+$ConfigPath = $env:RAS_TEST_CONFIG
+$Identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+$FileAcl = [Security.AccessControl.FileSecurity]::new()
+$FileAcl.SetOwner($Identity.User)
+$FileAcl.SetAccessRuleProtection($true, $false)
+$FileRule = [Security.AccessControl.FileSystemAccessRule]::new($Identity.User, 'FullControl', 'Allow')
+$FileAcl.AddAccessRule($FileRule)
+Set-Acl -LiteralPath $ConfigPath -AclObject $FileAcl
+"""
+            env = {key: value for key, value in os.environ.items() if key.casefold() != "psmodulepath"}
+            env["RAS_TEST_CONFIG"] = str(config)
+            result = subprocess.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script], env=env, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, msg="PowerShell file ACL setup failed:\n" + result.stdout + result.stderr)
+            self.assertEqual(windows.config_app(state, "live"), "synthetic_app")
+            windows.secure_path(config)
+            self.assertIn("synthetic_secret", config.read_text())
+            subprocess.run(["icacls", str(config), "/grant", "*S-1-1-0:R"], check=True, stdout=subprocess.DEVNULL)
+            with self.assertRaisesRegex(RuntimeError, "current-user-only"):
+                windows.config_app(state, "live")
+
+    def test_loopback_credentials_are_private_and_stable(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            state = windows.private_dir(Path(temporary) / "private")
+            first = windows.database_settings(state)
+            self.assertEqual(first, windows.database_settings(state))
+            self.assertGreaterEqual(len(first["password"]), 32)
+            windows.secure_path(state / "postgres-connection.json")
+            windows.ROOT = Path(temporary)
+            env = windows.environment(state, "offline")
+            self.assertIn("@127.0.0.1:", env["REMOTE_AGENT_SESSION_DATABASE_URL"])
+            self.assertNotIn("?host=", env["REMOTE_AGENT_SESSION_DATABASE_URL"])
+
+    def test_process_job_kills_descendant_when_supervisor_dies(self):
+        import ctypes
+        from ctypes import wintypes
+        script = "import importlib.util,subprocess,sys,time; s=importlib.util.spec_from_file_location('w',sys.argv[1]); w=importlib.util.module_from_spec(s); s.loader.exec_module(w); job=w.OwnedJob(); child=subprocess.Popen([sys.executable,'-c','import time; time.sleep(60)']); print(child.pid,flush=True); time.sleep(60)"
+        supervisor = subprocess.Popen([sys.executable, "-c", script, str(Path(__file__).with_name("windows_lifecycle.py"))], stdout=subprocess.PIPE, text=True)
+        handle = None
+        api = ctypes.WinDLL("kernel32", use_last_error=True)
+        api.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+        api.OpenProcess.restype = wintypes.HANDLE
+        api.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+        api.CloseHandle.argtypes = [wintypes.HANDLE]
+        try:
+            descendant = int(supervisor.stdout.readline())
+            handle = api.OpenProcess(0x100000, False, descendant)
+            self.assertTrue(handle)
+            supervisor.terminate()
+            supervisor.wait(timeout=10)
+            self.assertEqual(api.WaitForSingleObject(handle, 10000), 0)
+        finally:
+            if supervisor.poll() is None:
+                supervisor.kill()
+                supervisor.wait()
+            if handle:
+                api.CloseHandle(handle)
+            supervisor.stdout.close()
+
+
+if __name__ == "__main__":
+    unittest.main()
