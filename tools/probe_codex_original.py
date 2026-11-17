@@ -246,6 +246,31 @@ class Model(http.server.BaseHTTPRequestHandler):
             pass
 
 
+class ManagedOwner:
+    def __init__(self, binary, env, log):
+        self.binary, self.env, self.log = binary, env, log
+        result = subprocess.run([binary, "app-server", "daemon", "start"], env=env, stdout=subprocess.PIPE, stderr=log, text=True, timeout=60)
+        assert result.returncode == 0, "managed daemon start failed"
+        output = json.loads(result.stdout)
+        self.pid, self.endpoint = output["pid"], Path(output["socketPath"])
+        emit("managed_daemon_start", passed=True, output=output)
+
+    def poll(self):
+        result = subprocess.run([self.binary, "app-server", "daemon", "version"], env=self.env, stdout=subprocess.PIPE, stderr=self.log, text=True, timeout=15)
+        return None if result.returncode == 0 and json.loads(result.stdout).get("status") == "running" else 0
+
+    def terminate(self):
+        result = subprocess.run([self.binary, "app-server", "daemon", "stop"], env=self.env, stdout=subprocess.PIPE, stderr=self.log, text=True, timeout=30)
+        assert result.returncode == 0, "managed daemon stop failed"
+        emit("managed_daemon_stop", passed=True, output=json.loads(result.stdout))
+
+    def wait(self, timeout):
+        assert self.poll() is not None, "managed daemon remains running"
+
+    def kill(self):
+        self.terminate()
+
+
 def main(args):
     emit("environment", platform=sys.platform, elevated=elevation(), binary=args.codex)
     if args.limited and elevation():
@@ -268,7 +293,14 @@ def main(args):
         version = subprocess.check_output([args.codex, "--version"], env=env, text=True).strip()
         emit("binary", version=version)
         endpoint = home / "app-server-control" / "app-server-control.sock"
-        owner = subprocess.Popen([args.codex, "app-server", "--listen", "unix://" + str(endpoint)], env=env, stdin=subprocess.DEVNULL, stdout=log, stderr=log)
+        if args.managed:
+            settings = home / "app-server-daemon" / "settings.json"
+            settings.parent.mkdir(exist_ok=True)
+            settings.write_text(json.dumps({"remoteControlEnabled": False, "updater": {"autoUpdateEnabled": False}}), encoding="utf-8")
+            owner = ManagedOwner(args.codex, env, log)
+            endpoint = owner.endpoint
+        else:
+            owner = subprocess.Popen([args.codex, "app-server", "--listen", "unix://" + str(endpoint)], env=env, stdin=subprocess.DEVNULL, stdout=log, stderr=log)
         deadline = time.monotonic() + 25
         while time.monotonic() < deadline and not endpoint.exists() and owner.poll() is None:
             time.sleep(0.1)
@@ -340,6 +372,7 @@ if __name__ == "__main__":
     parser.add_argument("--codex", required=True)
     parser.add_argument("--state", required=True)
     parser.add_argument("--limited", action="store_true")
+    parser.add_argument("--managed", action="store_true")
     args = parser.parse_args()
     try:
         sys.exit(main(args))

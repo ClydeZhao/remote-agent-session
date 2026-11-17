@@ -17,7 +17,8 @@ jobs:
         shell: pwsh
         run: |
           $archive = Join-Path $env:RUNNER_TEMP 'codex-package.tar.zst'
-          Invoke-WebRequest 'https://github.com/openai/codex/releases/download/rust-v0.169.0/codex-package-x86_64-pc-windows-msvc.tar.zst' -OutFile $archive
+          curl.exe --fail --location --retry 2 --max-time 180 --output $archive 'https://github.com/openai/codex/releases/download/rust-v0.169.0/codex-package-x86_64-pc-windows-msvc.tar.zst'
+          if ($LASTEXITCODE -ne 0) { throw 'Release download failed' }
           if ((Get-FileHash $archive -Algorithm SHA256).Hash.ToLower() -ne 'eca09f840d7b53cdd67108a7c5c39457758b601340e697c6e609f645e82707eb') { throw 'Release checksum mismatch' }
           $package = Join-Path $env:RUNNER_TEMP 'codex-native'
           New-Item -ItemType Directory -Path $package | Out-Null
@@ -30,4 +31,10 @@ jobs:
         shell: pwsh
         run: |
           python tools/probe_codex_original.py --codex "$env:PROBE_CODEX" --state "$env:RUNNER_TEMP/ras-native" --limited
+          exit $LASTEXITCODE
+      - name: Probe managed Windows daemon with the same session checks
+        if: success() || failure()
+        shell: pwsh
+        run: |
+          python tools/probe_codex_original.py --codex "$env:PROBE_CODEX" --state "$env:RUNNER_TEMP/ras-managed" --limited --managed
           exit $LASTEXITCODE
