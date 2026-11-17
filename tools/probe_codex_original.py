@@ -215,6 +215,8 @@ class Model(http.server.BaseHTTPRequestHandler):
     waiting = threading.Event()
     release = threading.Event()
     requests = []
+    approval_call = None
+    marker = None
 
     def log_message(self, *args):
         pass
@@ -226,7 +228,7 @@ class Model(http.server.BaseHTTPRequestHandler):
             body = zstandard.ZstdDecompressor().decompress(body, max_output_size=16777216)
         value = json.loads(body)
         Model.requests.append(value)
-        if len(Model.requests) > 12:
+        if len(Model.requests) > 20:
             raise RuntimeError("unexpected repeated model requests")
         users = [x for x in value.get("input", []) if x.get("role") == "user"]
         prompt = json.dumps(users[-1]) if users else ""
@@ -245,15 +247,17 @@ class Model(http.server.BaseHTTPRequestHandler):
             tool = next(t for t in tools if t.get("name") in ("exec_command", "shell_command", "shell"))
             name = tool["name"]
             arguments = {"sandbox_permissions": "require_escalated", "justification": "Synthetic probe: deny this one-time request."}
+            command = 'echo RAS_UNEXPECTED > "' + str(Model.marker) + '"'
             if name == "exec_command":
-                arguments["cmd"] = "echo RAS_SHOULD_NOT_EXECUTE"
+                arguments["cmd"] = command
             elif name == "shell_command":
-                arguments["command"] = "echo RAS_SHOULD_NOT_EXECUTE"
+                arguments["command"] = command
             else:
-                arguments["command"] = ["cmd.exe", "/c", "echo RAS_SHOULD_NOT_EXECUTE"]
+                arguments["command"] = ["cmd.exe", "/c", command]
             output = {"id": "fc_" + response_id, "type": "function_call", "call_id": "call_" + response_id, "name": name, "arguments": json.dumps(arguments), "status": "completed"}
+            Model.approval_call = output["call_id"]
         else:
-            text = "RAS_DENIED" if "RAS_APPROVAL" in prompt else "RAS_REMOTE" if "RAS_REMOTE" in prompt else "RAS_ORIGINAL"
+            text = "RAS_DENIED" if "RAS_APPROVAL" in prompt else "RAS_RECONNECTED" if "RAS_RECONNECT" in prompt else "RAS_REMOTE" if "RAS_REMOTE" in prompt else "RAS_ORIGINAL"
             output = {"id": "msg_" + response_id, "type": "message", "role": "assistant", "status": "completed", "content": [{"type": "output_text", "text": text, "annotations": []}]}
         self.sse("response.output_item.added", {"output_index": 0, "item": output})
         self.sse("response.output_item.done", {"output_index": 0, "item": output})
@@ -292,6 +296,70 @@ class ManagedOwner:
         self.terminate()
 
 
+def check_turn(client, thread, turn_id, client_id, prompt, answer):
+    history = client.call("thread/turns/list", {"threadId": thread, "itemsView": "full", "limit": 50})
+    turn = next(x for x in history["data"] if x["id"] == turn_id)
+    assert turn["status"] == "completed", turn
+    users = [x for x in turn["items"] if x["type"] == "userMessage"]
+    assert any(x.get("clientUserMessageId", x.get("clientId")) == client_id and prompt in json.dumps(x) for x in users), turn
+    assert any(x["type"] == "agentMessage" and x.get("text") == answer for x in turn["items"]), turn
+    return turn
+
+
+def probe_tui(args, env, endpoint, work, client):
+    from winpty import PtyProcess
+    before = set(client.call("thread/loaded/list", {})["data"])
+    command = [args.codex, "--remote", "unix://" + str(endpoint), "--no-alt-screen", "-C", str(work), "RAS_ORIGINAL_CLI"]
+    terminal = PtyProcess.spawn(subprocess.list2cmdline(command), cwd=str(work), env=env, dimensions=(40, 140))
+    output = []
+    def read():
+        try:
+            while terminal.isalive():
+                chunk = terminal.read(8192)
+                output.append(chunk)
+                if "\x1b[6n" in chunk:
+                    terminal.write("\x1b[1;1R")
+        except EOFError:
+            pass
+    threading.Thread(target=read, daemon=True).start()
+    try:
+        deadline, thread = time.monotonic() + 30, None
+        while time.monotonic() < deadline:
+            loaded = set(client.call("thread/loaded/list", {})["data"]) - before
+            if loaded:
+                assert len(loaded) == 1, loaded
+                thread = loaded.pop()
+                break
+            time.sleep(0.2)
+        assert thread, "CLI did not create a loaded thread: " + "".join(output)[-5000:]
+        deadline = time.monotonic() + 20
+        while time.monotonic() < deadline:
+            turns = client.call("thread/turns/list", {"threadId": thread, "itemsView": "full", "limit": 50})["data"]
+            if turns and any(x["type"] == "agentMessage" and x.get("text") == "RAS_ORIGINAL" for x in turns[0]["items"]):
+                break
+            time.sleep(0.2)
+        else:
+            raise AssertionError("CLI original prompt did not complete: " + "".join(output)[-5000:])
+        assert terminal.isalive()
+        remote = client.call("turn/start", {"threadId": thread, "clientUserMessageId": "probe-tui-remote", "input": [{"type": "text", "text": "RAS_REMOTE", "text_elements": []}]})
+        deadline = time.monotonic() + 20
+        while time.monotonic() < deadline:
+            try:
+                check_turn(client, thread, remote["turn"]["id"], "probe-tui-remote", "RAS_REMOTE", "RAS_REMOTE")
+                if "RAS_REMOTE" in "".join(output):
+                    break
+            except (StopIteration, AssertionError):
+                pass
+            time.sleep(0.2)
+        else:
+            raise AssertionError("CLI did not observe the remote turn: " + "".join(output)[-5000:])
+        assert terminal.isalive()
+        emit("real_windows_cli_original_and_remote_input", passed=True, thread_id=thread, cli_pid=terminal.pid, explicit_remote=True)
+    finally:
+        terminal.close(force=True)
+        (Path(args.state) / "tui.log").write_text("".join(output), encoding="utf-8")
+
+
 def main(args):
     emit("environment", platform=sys.platform, elevated=elevation(), binary=args.codex)
     if args.limited and elevation():
@@ -300,12 +368,14 @@ def main(args):
     root = Path(args.state).resolve()
     root.mkdir(parents=True, exist_ok=True)
     home, work = root / "home", root / "work"
+    Model.marker = root / "denied-command-must-not-create.txt"
+    assert not Model.marker.exists()
     home.mkdir(exist_ok=True)
     work.mkdir(exist_ok=True)
     model = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Model)
     threading.Thread(target=model.serve_forever, daemon=True).start()
     port = model.server_port
-    (home / "config.toml").write_text(f'model = "probe-model"\nmodel_provider = "probe"\napproval_policy = "on-request"\nsandbox_mode = "read-only"\n[features]\nenable_request_compression = false\n[model_providers.probe]\nname = "Probe"\nbase_url = "http://127.0.0.1:{port}/v1"\nwire_api = "responses"\nrequires_openai_auth = false\n[analytics]\nenabled = false\n', encoding="utf-8")
+    (home / "config.toml").write_text(f'model = "probe-model"\nmodel_provider = "probe"\napproval_policy = "on-request"\nsandbox_mode = "read-only"\n[features]\nenable_request_compression = false\n[model_providers.probe]\nname = "Probe"\nbase_url = "http://127.0.0.1:{port}/v1"\nwire_api = "responses"\nrequires_openai_auth = false\n[analytics]\nenabled = false\n[projects.{json.dumps(str(work))}]\ntrust_level = "trusted"\n', encoding="utf-8")
     env = {k: v for k, v in os.environ.items() if not any(s in k.upper() for s in ("OPENAI", "TOKEN", "SECRET", "API_KEY"))}
     env["CODEX_HOME"] = str(home)
     log = (root / "codex.log").open("wb")
@@ -342,16 +412,16 @@ def main(args):
         remote = relay.call("turn/start", {"threadId": thread, "clientUserMessageId": "probe-remote", "input": [{"type": "text", "text": "RAS_REMOTE", "text_elements": []}]})
         complete = original.event("turn/completed")
         assert complete["params"]["turn"]["id"] == remote["turn"]["id"], complete
-        history = relay.call("thread/turns/list", {"threadId": thread, "itemsView": "full", "limit": 50})
-        serialized = json.dumps(history)
-        assert "RAS_REMOTE" in serialized and "RAS_ORIGINAL" in serialized
-        assert "probe-remote" in serialized and "probe-original" in serialized
-        emit("remote_input_original_receipt_and_history", passed=True, turns=len(history["data"]))
+        assert complete["params"]["turn"]["status"] == "completed", complete
+        check_turn(relay, thread, first["turn"]["id"], "probe-original", "RAS_ORIGINAL", "RAS_ORIGINAL")
+        check_turn(relay, thread, remote["turn"]["id"], "probe-remote", "RAS_REMOTE", "RAS_REMOTE")
+        emit("remote_input_original_receipt_and_history", passed=True)
         waiting = relay.call("turn/start", {"threadId": thread, "clientUserMessageId": "probe-wait", "input": [{"type": "text", "text": "RAS_WAIT", "text_elements": []}]})
         assert Model.waiting.wait(20), "model never entered waiting turn"
         relay.call("turn/interrupt", {"threadId": thread, "turnId": waiting["turn"]["id"]})
         interrupted = original.event("turn/completed")
         assert interrupted["params"]["turn"]["status"] == "interrupted", interrupted
+        assert interrupted["params"]["turn"]["id"] == waiting["turn"]["id"], interrupted
         emit("interrupt_same_original_turn", passed=True)
         approval = relay.call("turn/start", {"threadId": thread, "clientUserMessageId": "probe-approval", "input": [{"type": "text", "text": "RAS_APPROVAL", "text_elements": []}]})
         request = original.event("item/commandExecution/requestApproval")
@@ -360,13 +430,22 @@ def main(args):
         original.send({"id": request["id"], "result": {"decision": "decline"}})
         done = original.event("turn/completed")
         assert done["params"]["turn"]["status"] == "completed", done
+        assert done["params"]["turn"]["id"] == approval["turn"]["id"], done
+        assert any(i.get("type") == "function_call_output" and i.get("call_id") == Model.approval_call and "rejected by user" in i.get("output", "").lower() for request in Model.requests for i in request.get("input", []))
+        assert not Model.marker.exists(), "denied command executed"
         emit("native_one_time_approval_denied", passed=True, decision_channel="original client")
         relay.close()
         clients.remove(relay)
         reconnected = RPC(args.codex, endpoint, env, log)
         clients.append(reconnected)
         assert thread in reconnected.call("thread/loaded/list", {})["data"]
+        continued = reconnected.call("turn/start", {"threadId": thread, "clientUserMessageId": "probe-reconnect", "input": [{"type": "text", "text": "RAS_RECONNECT", "text_elements": []}]})
+        done = original.event("turn/completed")
+        assert done["params"]["turn"]["id"] == continued["turn"]["id"]
+        check_turn(reconnected, thread, continued["turn"]["id"], "probe-reconnect", "RAS_RECONNECT", "RAS_RECONNECTED")
         emit("relay_reconnect_keeps_original", passed=True, owner_pid=owner.pid)
+        if args.tui:
+            probe_tui(args, env, endpoint, work, reconnected)
         emit("result", passed=True, model="local fixture", desktop_tested=False, feishu_tested=False)
         return 0
     finally:
@@ -391,6 +470,7 @@ if __name__ == "__main__":
     parser.add_argument("--state", required=True)
     parser.add_argument("--limited", action="store_true")
     parser.add_argument("--managed", action="store_true")
+    parser.add_argument("--tui", action="store_true")
     args = parser.parse_args()
     try:
         sys.exit(main(args))
