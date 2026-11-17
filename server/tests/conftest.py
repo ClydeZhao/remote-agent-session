@@ -24,9 +24,11 @@ def pg():
         socket.mkdir()
 
         def command(*args):
-            subprocess.run(
-                [str(binary / args[0]), *args[1:]], check=True, capture_output=True, text=True
-            )
+            with (root / "commands.log").open("ab", buffering=0) as log:
+                result = subprocess.run(
+                    [str(binary / args[0]), *args[1:]], stdout=log, stderr=log, timeout=60
+                )
+            assert result.returncode == 0, (args[0], (root / "commands.log").read_text(errors="replace"))
 
         if os.name == "nt":
             password = secrets.token_urlsafe(32)
