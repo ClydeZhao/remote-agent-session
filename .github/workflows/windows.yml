@@ -50,3 +50,9 @@ jobs:
         run: |
           python tools/windows_ci.py --root "$env:RUNNER_TEMP/ras-installed-check"
           exit $LASTEXITCODE
+      - name: Retain verified Windows release candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-cli-candidate
+          path: ${{ runner.temp }}/ras-installed-check/release/*
+          if-no-files-found: error

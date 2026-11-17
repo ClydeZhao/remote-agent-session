@@ -25,16 +25,60 @@ class ControlTests(unittest.TestCase):
         status = {"running": True, "pid": 12}
         owner = Path(__file__).resolve().parent
         for envelope in ({"payload": "status"}, {"token": "wrong", "payload": {"protocol": 1, "command": "stop", "intent": "explicit-user-stop"}}, []):
-            self.assertEqual(windows.authenticated_reply(json.dumps(envelope), "secret", status, owner), (None, False))
-        reply, stopped = windows.authenticated_reply(json.dumps({"token": "secret", "payload": "status"}), "secret", status, owner)
+            self.assertEqual(windows.authenticated_reply(json.dumps(envelope), ("a" * 64), status, owner), (None, False))
+        reply, stopped = windows.authenticated_reply(json.dumps({"token": ("a" * 64), "payload": "status"}), ("a" * 64), status, owner)
         self.assertTrue(reply["running"])
         self.assertFalse(stopped)
+
+    def test_malformed_authentication_keeps_loopback_listener_available(self):
+        token = "a" * 64
+        status = {"running": True, "instance_id": "original"}
+        owner = Path(__file__).resolve().parent
+        malformed = [json.dumps({"token": value, "payload": "status"}) for value in ("é", "é" * 64, "\ud800" * 64, "f" * 63, "g" * 64, None, [], {})]
+        malformed.extend(("[" * 2000 + "]" * 2000, "{invalid"))
+        payloads = malformed + [json.dumps({"token": token, "payload": "status"})]
+        with socket.socket() as server:
+            server.bind(("127.0.0.1", 0))
+            server.listen(1)
+            server.settimeout(3)
+            failures = []
+            def serve():
+                try:
+                    for _ in payloads:
+                        with server.accept()[0] as client:
+                            client.settimeout(3)
+                            payload = b""
+                            while b"\n" not in payload and len(payload) < 16384:
+                                chunk = client.recv(16384 - len(payload))
+                                if not chunk:
+                                    break
+                                payload += chunk
+                            reply, stopped = windows.authenticated_reply(payload.decode(), token, status, owner)
+                            if reply is not None:
+                                client.sendall(json.dumps(reply).encode())
+                except Exception as exc:
+                    failures.append(exc)
+            worker = threading.Thread(target=serve)
+            worker.start()
+            try:
+                for index, payload in enumerate(payloads):
+                    with socket.create_connection(server.getsockname(), timeout=3) as client:
+                        client.sendall((payload + "\n").encode())
+                        reply = client.recv(8192)
+                    if index < len(malformed):
+                        self.assertEqual(reply, b"")
+                    else:
+                        self.assertTrue(json.loads(reply)["running"])
+            finally:
+                worker.join(timeout=5)
+            self.assertFalse(worker.is_alive())
+            self.assertEqual(failures, [])
 
     def test_authenticated_stop_preserves_installation_ownership(self):
         owner = Path(__file__).resolve().parent
         for expected, accepted in ((str(owner), True), (str(owner.parent), False)):
-            payload = {"token": "secret", "payload": {"protocol": 1, "command": "stop-owned", "expected_installation": expected}}
-            reply, stopped = windows.authenticated_reply(json.dumps(payload), "secret", {"running": True}, owner)
+            payload = {"token": ("a" * 64), "payload": {"protocol": 1, "command": "stop-owned", "expected_installation": expected}}
+            reply, stopped = windows.authenticated_reply(json.dumps(payload), ("a" * 64), {"running": True}, owner)
             self.assertEqual(stopped, accepted)
             self.assertEqual(reply["stop_accepted"], accepted)
 
@@ -66,12 +110,23 @@ class NativeWindowsTests(unittest.TestCase):
     def test_current_user_acl_rejects_an_added_everyone_grant(self):
         with tempfile.TemporaryDirectory() as temporary:
             state = windows.private_dir(Path(temporary) / "private")
-            path = state / "secret"
-            windows.private_file(path, b"secret")
+            path = state / ("a" * 64)
+            windows.private_file(path, b("a" * 64))
             windows.secure_path(path)
             subprocess.run(["icacls", str(path), "/grant", "*S-1-1-0:R"], check=True, stdout=subprocess.DEVNULL)
             with self.assertRaisesRegex(RuntimeError, "current-user-only"):
                 windows.secure_path(path)
+
+    def test_documented_editor_configuration_protects_existing_private_inheritance(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            state = windows.private_dir(Path(temporary) / "private")
+            config = state / "feishu.env"
+            config.write_text("LARK_APP_ID=synthetic_app\nLARK_APP_SECRET=synthetic_secret\n")
+            with self.assertRaisesRegex(RuntimeError, "protected current-user-only"):
+                windows.secure_path(config)
+            self.assertEqual(windows.config_app(state, "live"), "synthetic_app")
+            windows.secure_path(config)
+            self.assertIn("synthetic_secret", config.read_text())
 
     def test_loopback_credentials_are_private_and_stable(self):
         with tempfile.TemporaryDirectory() as temporary:

@@ -44,6 +44,30 @@ func TestWindowsControlSocketACL(t *testing.T) {
 	}
 }
 
+func TestWindowsControlSocketDirectoryRequiresProtectedDACL(t *testing.T) {
+	user, err := windows.GetCurrentProcessToken().GetTokenUser()
+	if err != nil {
+		t.Fatal(err)
+	}
+	sid := user.User.Sid.String()
+	for _, test := range []struct {
+		dacl string
+		safe bool
+	}{
+		{"D:P(A;;FA;;;" + sid + ")", true},
+		{"D:(A;;FA;;;" + sid + ")", false},
+		{"D:P(A;;FA;;;" + sid + ")(A;;GR;;;WD)", false},
+	} {
+		sd, err := windows.SecurityDescriptorFromString("O:" + sid + test.dacl)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if safe := controlSocketDirectorySecuritySafe(sd, user.User.Sid); safe != test.safe {
+			t.Fatalf("protected private directory safe=%v expected=%v", safe, test.safe)
+		}
+	}
+}
+
 func TestWindowsCodexRequiresExplicitBackend(t *testing.T) {
 	t.Setenv("REMOTE_AGENT_SESSION_CODEX_SOCKET", "")
 	if c, err := OpenCodexForThread(context.Background(), "must-not-start", "thread"); err == nil {

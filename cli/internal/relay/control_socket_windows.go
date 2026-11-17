@@ -56,9 +56,11 @@ func prepareControlSocket(path string) (string, func(), error) {
 		if windows.GetFileInformationByHandle(handle, &info) != nil || info.FileAttributes&windows.FILE_ATTRIBUTE_DIRECTORY == 0 || info.FileAttributes&windows.FILE_ATTRIBUTE_REPARSE_POINT != 0 {
 			return fail()
 		}
-		sd, err := windows.GetSecurityInfo(handle, windows.SE_FILE_OBJECT, windows.OWNER_SECURITY_INFORMATION|windows.DACL_SECURITY_INFORMATION)
-		if err != nil || !controlSocketSecuritySafe(sd, user.User.Sid, i == 0) {
-			return fail()
+		if i == 0 {
+			sd, err := windows.GetSecurityInfo(handle, windows.SE_FILE_OBJECT, windows.OWNER_SECURITY_INFORMATION|windows.DACL_SECURITY_INFORMATION)
+			if err != nil || !controlSocketDirectorySecuritySafe(sd, user.User.Sid) {
+				return fail()
+			}
 		}
 	}
 	name, err := windows.UTF16PtrFromString(path)
@@ -116,4 +118,9 @@ func controlSocketSecuritySafe(sd *windows.SECURITY_DESCRIPTOR, user *windows.SI
 		}
 	}
 	return true
+}
+
+func controlSocketDirectorySecuritySafe(sd *windows.SECURITY_DESCRIPTOR, user *windows.SID) bool {
+	control, _, err := sd.Control()
+	return err == nil && control&windows.SE_DACL_PROTECTED != 0 && controlSocketSecuritySafe(sd, user, true)
 }
