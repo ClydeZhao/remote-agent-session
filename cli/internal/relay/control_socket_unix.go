@@ -29,3 +29,17 @@ func validateControlSocket(path string) error {
 	}
 	return nil
 }
+
+func prepareControlSocket(path string) (string, func(), error) {
+	if !filepath.IsAbs(path) {
+		return "", nil, ErrInterruptUnavailable
+	}
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return "", nil, ErrInterruptUnavailable
+	}
+	if err := validateControlSocket(resolved); err != nil {
+		return "", nil, err
+	}
+	return resolved, func() {}, nil
+}

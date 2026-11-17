@@ -276,8 +276,7 @@ func relayHookCommand(dir string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	quote := func(s string) string { return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'" }
-	return quote(binary) + " --state-dir " + quote(absolute) + " session hook", nil
+	return formatRelayHookCommand(binary, absolute)
 }
 
 func relayHooks(p output.Printer, dir string, args []string) int {

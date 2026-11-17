@@ -10,7 +10,7 @@ The computer, host application and local service must remain awake and online. F
 
 ## Install
 
-macOS is the first target. Linux lifecycle code is present but requires native end-to-end verification; Windows is not supported. Install Python 3.11+, PostgreSQL 15+ tools (`postgres`, `initdb`, `psql`, `createdb`, `pg_isready`, and `pg_ctl` for development tests); building from source also requires Go matching `cli/go.mod`. DSH requires Node >=22 and a compatible installed host. Do not run as root.
+macOS is the first target. Linux lifecycle code is present but requires native end-to-end verification. Windows supports native Codex CLI through an explicitly shared foreground app-server; Codex Desktop and DeepSeek Harness on Windows are excluded. Native Windows host and Feishu acceptance remain separate from automated checks. Install Python 3.11+, PostgreSQL 15+ tools (`postgres`, `initdb`, `psql`, `createdb`, `pg_isready`, and `pg_ctl` for development tests); building from source also requires Go matching `cli/go.mod`. DSH requires Node >=22 and a compatible installed host. Do not run as root.
 
 From a checked-out source tree or an unpacked matching release:
 
@@ -19,6 +19,14 @@ sh install/install.sh
 ```
 
 The default installation is `~/.local/share/remote-agent-session`. The installer creates a private Python environment, installs pinned backend dependencies, and includes the CLI, backend migrations, host plugin and product skill. It does not edit shell profiles, existing host profiles or BuddyBio installations. Add the printed `bin` directory to PATH, or use its absolute executable path. Use `REMOTE_AGENT_SESSION_INSTALL_DIR` for a new alternate location; existing directories are never overwritten.
+
+On Windows, use an ordinary, non-elevated PowerShell terminal with Python 3.11+ and PostgreSQL 15+ tools available. A source installation additionally needs Go matching `cli/go.mod`:
+
+```powershell
+.\install\install.ps1
+```
+
+The default is `%LOCALAPPDATA%\remote-agent-session`. The installation has a private owner ACL, an ownership marker, `.venv\Scripts\python.exe` and `bin\remote-agent-session.exe`. It does not install a Windows service, scheduled task, global PATH or profile setting. Follow the complete [Windows host workflow](docs/hosts.md#windows-native-codex-cli) before attaching; a standalone or Desktop session cannot be attached by guessing its ID.
 
 See [local setup](docs/setup.md), [host setup](docs/hosts.md), [operation and removal](docs/operations.md), and [compatibility](docs/compatibility.md).
 

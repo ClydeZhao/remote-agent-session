@@ -39,3 +39,22 @@ Earlier local candidates placed backend data inside the client root. The product
 4. Start the reviewed new installation with `--service-state-dir` pointing to the separate backend root and the original client global `--state-dir` where needed. Check readiness, login/binding status, and each original host before enabling its login autostart. Treat unknown/expired requests according to their original operation IDs; migration does not authorize replay.
 
 Custom paths must remain disjoint after resolving symlink ancestors, including client roots recorded in known DSH profile permission ownership files and service roots retained in the fixed metadata registry. An unrecognized custom DSH home must be supplied as `DSH_HOME`; the service cannot discover arbitrary profiles elsewhere on disk. Do not work around overlap errors by widening a host's permissions or deleting its ownership records.
+
+## Windows operation
+
+Run the installed `remote-agent-session.exe` from an ordinary terminal. Export `REMOTE_AGENT_SESSION_PG_BIN` when PostgreSQL is outside PATH and retain any explicit service/client root overrides. Before session commands export the same `CODEX_HOME` and `REMOTE_AGENT_SESSION_CODEX_SOCKET` used by the foreground Codex backend; see [host setup](hosts.md#windows-native-codex-cli).
+
+```powershell
+remote-agent-session.exe start --mode offline
+remote-agent-session.exe status --mode offline
+remote-agent-session.exe doctor --mode offline
+remote-agent-session.exe stop --mode offline
+remote-agent-session.exe start
+remote-agent-session.exe login
+remote-agent-session.exe status
+remote-agent-session.exe stop
+```
+
+The local service supervisor owns its database and children; it does not start the foreground Codex backend. Leave the Codex app-server terminal and original `codex --remote` session open while connected. Windows has no service/scheduled-task/login autostart implementation; `service-install` and related autostart operations report unsupported. Repeated start must reuse the owned service. Stop/restart use its authenticated private control endpoint and leave unknown listeners alone. Private logs and state retain owner ACLs. PostgreSQL uses an owned loopback port with private SCRAM credentials; it never reconfigures a shared system cluster.
+
+For uninstall, detach only sessions belonging to this installation and remove its owned host hooks through the supported host workflow. Run the installed `.\install\uninstall.ps1`, appending `--service-state-dir PATH` for a custom root. It verifies the installation marker and requests only `stop-owned`; a replacement installation with the same service root is preserved. It retains the installation directory for reviewed explicit deletion and always retains separate client/backend state and credentials. It does not modify Windows profiles, registry startup entries, unrelated services or BuddyBio. Back up private state securely before updates; install every candidate into a fresh directory.

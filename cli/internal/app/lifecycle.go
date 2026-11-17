@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 )
 
 func lifecycle(p output.Printer, stateDir string, args []string) int {
@@ -22,6 +23,9 @@ func lifecycle(p output.Printer, stateDir string, args []string) int {
 		return localFailure(p, err)
 	}
 	python := filepath.Join(root, ".venv", "bin", "python")
+	if runtime.GOOS == "windows" {
+		python = filepath.Join(root, ".venv", "Scripts", "python.exe")
+	}
 	commandArgs := append([]string{script}, args...)
 	if p.JSON {
 		commandArgs = append(commandArgs, "--json")

@@ -4,8 +4,8 @@
 | --- | --- | --- |
 | macOS | Python >=3.11, PostgreSQL >=15, Go toolchain for source build | First release target; a candidate still requires clean install and real end-to-end acceptance |
 | Linux | Same backend prerequisites, Unix sockets | Not a validated release platform; login autostart is not implemented |
-| Windows | — | Unsupported |
-| Codex | CLI 0.167.1 with daemon 0.168.0, default shared-backend path | Original-session main path verified; experimental interfaces, no blanket version promise |
+| Windows | Native Python >=3.11, PostgreSQL >=15 tools, Go for source builds; non-elevated terminal and NTFS owner ACLs | Native Codex CLI only, explicitly shared foreground app-server and exact session ID; Desktop, DSH, WSL mixing and autostart excluded. Native host/Feishu acceptance pending |
+| Codex on macOS | CLI 0.167.1 with daemon 0.168.0, default shared-backend path | Original-session main path verified; experimental interfaces, no blanket version promise |
 | DeepSeek Harness | Native 0.2.2-rc.2, Node >=22; openai/gpt-6.1-terra configuration | Original-session main path, permissions, interruption, long answers and TL;DR covered; timed asynchronous questions, quoted replies, multi-select and recovery across backend restart/plugin reload covered |
 | Feishu | Independent self-built app, private chat, long connection and required scopes | API acceptance is distinct from mobile receipt |
 

@@ -26,7 +26,7 @@ func OpenCodexForThread(ctx context.Context, binary, id string) (*Codex, error) 
 		return nil, ErrInterruptUnavailable
 	}
 	if os.Getenv("REMOTE_AGENT_SESSION_CODEX_SOCKET") != "" {
-		if thread.Status.Type == "notLoaded" || thread.Status.Type == "" {
+		if !loadedThreadStatus(thread.Status.Type) {
 			observer.RPC.Close()
 			return nil, errors.New("指定的 Codex 后台尚未加载当前会话。请退出原终端会话后，用 codex --remote 接入该后台并恢复同一会话，再连接飞书")
 		}
@@ -78,8 +78,12 @@ func OpenCodexForThread(ctx context.Context, binary, id string) (*Codex, error) 
 
 func (c *Codex) InspectRelayTarget(ctx context.Context, id string) (Thread, error) {
 	thread, err := c.Inspect(ctx, id)
-	if err == nil && (thread.ID != id || thread.Status.Type == "") {
+	if err == nil && (thread.ID != id || (thread.Status.Type != "notLoaded" && !loadedThreadStatus(thread.Status.Type))) {
 		err = errors.New("无法确认原会话的当前状态。请在原客户端打开该会话并完成启动提示，再重新连接")
 	}
 	return thread, err
+}
+
+func loadedThreadStatus(status string) bool {
+	return status == "idle" || status == "active" || status == "systemError"
 }

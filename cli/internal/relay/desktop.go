@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	"github.com/google/uuid"
@@ -25,6 +26,9 @@ type desktopIPC struct {
 }
 
 func openDesktop(ctx context.Context) (*desktopIPC, error) {
+	if runtime.GOOS == "windows" {
+		return nil, ErrInterruptUnavailable
+	}
 	home := os.Getenv("CODEX_HOME")
 	if home == "" {
 		userHome, err := os.UserHomeDir()
