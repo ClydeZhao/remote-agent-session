@@ -49,7 +49,7 @@ def main():
                 if log.exists():
                     print(name + ': ' + log.read_text(errors='replace')[-18000:], flush=True)
         assert result.returncode == expected, (action, result.stdout, result.stderr)
-        return json.loads(result.stdout)
+        return json.loads(result.stdout if expected == 0 else result.stderr)
     try:
         lifecycle('start')
         lifecycle('start')
