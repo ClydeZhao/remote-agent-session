@@ -6,7 +6,7 @@ permissions:
   contents: read
 jobs:
   native-codex:
-    runs-on: windows-2022
+    runs-on: windows-2025
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
@@ -16,16 +16,11 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: cli/go.mod
-      - name: Install PostgreSQL 17 test prerequisite
-        shell: pwsh
-        run: |
-          choco install postgresql17 --yes --no-progress --params '/Password:RAS_CI_Only_123456 /Port:55448'
-          if ($LASTEXITCODE -ne 0) { throw 'PostgreSQL 17 setup failed' }
       - name: Locate PostgreSQL
         shell: pwsh
         run: |
           $pg = Get-ChildItem 'C:/Program Files/PostgreSQL' -Directory | Sort-Object Name -Descending | Select-Object -First 1
-          if (-not $pg) { throw 'PostgreSQL installation required' }
+          if (-not $pg -or [int]$pg.Name -lt 15) { throw 'PostgreSQL 15+ installation required' }
           "REMOTE_AGENT_SESSION_PG_BIN=$($pg.FullName)/bin" >> $env:GITHUB_ENV
           "$($pg.FullName)/bin" >> $env:GITHUB_PATH
       - name: Download pinned official native Codex package
