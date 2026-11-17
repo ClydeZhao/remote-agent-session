@@ -55,6 +55,8 @@ remote-agent-session.exe status
 remote-agent-session.exe stop
 ```
 
+Start the local service from an ordinary PowerShell terminal. A terminal host that confines child processes in a Windows Job Object may terminate a background supervisor when its task ends; in that environment use the foreground `remote-agent-session run` command in a separate terminal and keep it open.
+
 The local service supervisor owns its database and children; it does not start the foreground Codex backend. Leave the Codex app-server terminal and original `codex --remote` session open while connected. Windows has no service/scheduled-task/login autostart implementation; `service-install` and related autostart operations report unsupported. Repeated start must reuse the owned service. Stop/restart use its authenticated private control endpoint and leave unknown listeners alone. Private logs and state retain owner ACLs. PostgreSQL uses an owned loopback port with private SCRAM credentials; it never reconfigures a shared system cluster.
 
 For uninstall, detach only sessions belonging to this installation and remove its owned host hooks through the supported host workflow. Run the installed `.\install\uninstall.ps1`, appending `--service-state-dir PATH` for a custom root. It verifies the installation marker and requests only `stop-owned`; a replacement installation with the same service root is preserved. It retains the installation directory for reviewed explicit deletion and always retains separate client/backend state and credentials. It does not modify Windows profiles, registry startup entries, unrelated services or BuddyBio. Back up private state securely before updates; install every candidate into a fresh directory.

@@ -20,6 +20,7 @@ def main():
     if not args.inner and elevation():
         return run_limited([sys.executable, str(Path(__file__).resolve()), '--inner', '--root', args.root])
     assert not elevation()
+    subprocess.run([sys.executable, '-m', 'unittest', 'discover', '-s', str(Path(__file__).parent), '-p', 'test_windows_lifecycle.py', '-v'], check=True, timeout=90)
     root = Path(args.root).resolve()
     root.mkdir(parents=True, exist_ok=True)
     source = Path(__file__).resolve().parents[1]

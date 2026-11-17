@@ -16,6 +16,11 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: cli/go.mod
+      - name: Install PostgreSQL 17 test prerequisite
+        shell: pwsh
+        run: |
+          choco install postgresql17 --yes --no-progress --params '/Password:RAS_CI_Only_123456 /Port:55448'
+          if ($LASTEXITCODE -ne 0) { throw 'PostgreSQL 17 setup failed' }
       - name: Locate PostgreSQL
         shell: pwsh
         run: |
@@ -45,6 +50,7 @@ jobs:
           python tools/probe_codex_original.py --codex "$env:PROBE_CODEX" --state "$env:RUNNER_TEMP/ras-native" --limited --tui --production-relay
           exit $LASTEXITCODE
       - name: Verify installed release lifecycle and real backend persistence
+        if: success() || failure()
         shell: pwsh
         run: |
           python tools/windows_ci.py --root "$env:RUNNER_TEMP/ras-installed-check"

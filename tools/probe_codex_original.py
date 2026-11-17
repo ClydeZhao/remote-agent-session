@@ -454,7 +454,7 @@ def main(args):
         emit("relay_reconnect_keeps_original", passed=True, owner_pid=owner.pid)
         if args.production_relay:
             relay_env = {**env, "REMOTE_AGENT_SESSION_TEST_CONTROL_SOCKET": str(endpoint), "REMOTE_AGENT_SESSION_TEST_OWNED_THREAD": thread, "REMOTE_AGENT_SESSION_TEST_CONTROL_MUTATIONS": "1"}
-            subprocess.run(["go", "test", "./internal/relay", "-run", "^TestLiveWindowsOriginalRelay$", "-count=1", "-v"], cwd=Path(__file__).resolve().parents[1] / "cli", env=relay_env, check=True, timeout=120)
+            subprocess.run(["go", "test", "./internal/relay", "-run", "^Test(LiveWindowsOriginalRelay|WindowsControlSocketACL|WindowsCodexRequiresExplicitBackend)$", "-count=1", "-v"], cwd=Path(__file__).resolve().parents[1] / "cli", env=relay_env, check=True, timeout=120)
         if args.tui:
             probe_tui(args, env, endpoint, work, reconnected)
         emit("result", passed=True, model="local fixture", desktop_tested=False, feishu_tested=False)

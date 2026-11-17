@@ -3,6 +3,7 @@ import contextlib
 import ctypes
 from ctypes import wintypes
 import hashlib
+from functools import lru_cache
 import hmac
 import json
 import os
@@ -20,6 +21,7 @@ from urllib.parse import quote
 import urllib.request
 
 
+@lru_cache(maxsize=1)
 def current_sid():
     result = subprocess.check_output(["whoami", "/user", "/fo", "csv", "/nh"], text=True)
     import csv
@@ -345,7 +347,8 @@ def run(state, mode, port):
         env = environment(state, mode)
         env["REMOTE_AGENT_SESSION_INSTANCE_ID"] = instance
         settings = database_settings(state)
-        pg_env = dict(env, PGPASSWORD=settings["password"], PGUSER=settings["user"], PGHOST="127.0.0.1", PGPORT=str(settings["port"]))
+        pg_env = {key: value for key, value in env.items() if not key.startswith("PG")}
+        pg_env.update(PGPASSWORD=settings["password"], PGUSER=settings["user"], PGHOST="127.0.0.1", PGPORT=str(settings["port"]), PGSSLMODE="disable")
         logpath = state / "service.log"
         if not logpath.exists():
             private_file(logpath, b"")

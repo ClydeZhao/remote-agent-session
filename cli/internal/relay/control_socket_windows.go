@@ -1,7 +1,6 @@
 package relay
 
 import (
-	"os"
 	"path/filepath"
 	"strings"
 	"unsafe"
@@ -62,11 +61,23 @@ func prepareControlSocket(path string) (string, func(), error) {
 			return fail()
 		}
 	}
-	info, err := os.Lstat(path)
-	if err != nil || info.Mode()&os.ModeSocket == 0 || info.Mode()&os.ModeSymlink != 0 {
+	name, err := windows.UTF16PtrFromString(path)
+	if err != nil {
 		return fail()
 	}
-	sd, err := windows.GetNamedSecurityInfo(path, windows.SE_FILE_OBJECT, windows.OWNER_SECURITY_INFORMATION|windows.DACL_SECURITY_INFORMATION)
+	handle, err := windows.CreateFile(name, windows.READ_CONTROL|windows.FILE_READ_ATTRIBUTES, windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE, nil, windows.OPEN_EXISTING, windows.FILE_FLAG_OPEN_REPARSE_POINT|windows.FILE_FLAG_BACKUP_SEMANTICS, 0)
+	if err != nil {
+		return fail()
+	}
+	handles = append(handles, handle)
+	var tag struct {
+		Attributes uint32
+		Tag        uint32
+	}
+	if windows.GetFileInformationByHandleEx(handle, windows.FileAttributeTagInfo, (*byte)(unsafe.Pointer(&tag)), uint32(unsafe.Sizeof(tag))) != nil || tag.Tag != 0x80000023 || tag.Attributes&windows.FILE_ATTRIBUTE_REPARSE_POINT == 0 || tag.Attributes&windows.FILE_ATTRIBUTE_DIRECTORY != 0 {
+		return fail()
+	}
+	sd, err := windows.GetSecurityInfo(handle, windows.SE_FILE_OBJECT, windows.OWNER_SECURITY_INFORMATION|windows.DACL_SECURITY_INFORMATION)
 	if err != nil || !controlSocketSecuritySafe(sd, user.User.Sid, true) {
 		return fail()
 	}
