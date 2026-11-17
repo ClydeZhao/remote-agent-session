@@ -20,11 +20,11 @@ def main():
     if not args.inner and elevation():
         return run_limited([sys.executable, str(Path(__file__).resolve()), '--inner', '--root', args.root])
     assert not elevation()
-    subprocess.run([sys.executable, '-m', 'unittest', 'discover', '-s', str(Path(__file__).parent), '-p', 'test_windows_lifecycle.py', '-v'], check=True, timeout=90)
+    security_checks = subprocess.run([sys.executable, '-m', 'unittest', 'discover', '-s', str(Path(__file__).parent), '-p', 'test_windows_lifecycle.py', '-v'], timeout=90)
     root = Path(args.root).resolve()
     root.mkdir(parents=True, exist_ok=True)
     source = Path(__file__).resolve().parents[1]
-    subprocess.run(['go', 'test', './internal/app', '-run', '^TestWindowsHook', '-count=1', '-v'], cwd=source / 'cli', check=True, timeout=120)
+    hook_checks = subprocess.run(['go', 'test', './internal/app', '-run', '^TestWindowsHook', '-count=1', '-v'], cwd=source / 'cli', timeout=120)
     release = root / 'release'
     result = subprocess.check_output([sys.executable, str(source / 'tools/build_release.py'), '--output', str(release)], text=True)
     archive = Path(json.loads(result)['archive'])
@@ -67,6 +67,7 @@ def main():
     subprocess.run([str(install / '.venv/Scripts/python.exe'), '-m', 'pip', 'install', 'pytest', 'httpx', 'ruff'], check=True, timeout=120)
     test_env = {**env, 'PATH': str(install / '.venv/Scripts') + os.pathsep + env['PATH']}
     subprocess.run([str(install / '.venv/Scripts/python.exe'), '-m', 'pytest', 'tests'], cwd=source / 'server', env=test_env, check=True, timeout=300)
+    assert security_checks.returncode == 0 and hook_checks.returncode == 0, 'Native security or hook checks failed'
     print(json.dumps({'windows_installed_lifecycle': 'passed', 'backend_persistence_tests': 'passed'}))
     return 0
 
