@@ -5,6 +5,7 @@ from pathlib import Path
 import socket
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.request
 import zipfile
@@ -67,6 +68,21 @@ def main():
     finally:
         lifecycle('stop')
     assert not lifecycle('status')['running']
+    foreground_log = (root / 'foreground.log').open('wb')
+    foreground = subprocess.Popen([str(binary), 'run', '--service-state-dir', str(service), '--mode', 'offline', '--port', str(port)], env=env, stdin=subprocess.DEVNULL, stdout=foreground_log, stderr=foreground_log)
+    try:
+        deadline = time.monotonic() + 60
+        while not lifecycle('status')['running']:
+            assert foreground.poll() is None, 'Foreground service exited before readiness'
+            assert time.monotonic() < deadline, 'Foreground service readiness timeout'
+            time.sleep(0.2)
+        lifecycle('stop')
+        assert foreground.wait(timeout=30) == 0
+    finally:
+        if foreground.poll() is None:
+            lifecycle('stop')
+            foreground.wait(timeout=30)
+        foreground_log.close()
     subprocess.run(['pwsh', '-NoProfile', '-File', str(install / 'install/uninstall.ps1'), '--service-state-dir', str(service)], env=env, check=True, timeout=60)
     assert install.exists() and service.exists()
     subprocess.run([str(install / '.venv/Scripts/python.exe'), '-m', 'pip', 'install', 'pytest', 'httpx', 'ruff'], check=True, timeout=120)

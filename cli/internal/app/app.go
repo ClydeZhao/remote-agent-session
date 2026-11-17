@@ -19,7 +19,7 @@ const help = `Remote Agent Session
   session hooks
   session plugin install|remove|check --agent deepseek-harness
   session attach|status|detach
-  start|stop|restart|status|doctor
+  start|run|stop|restart|status|doctor
   skills read [session|setup]
   version | help
 全局选项放在命令前。保留原生任务审批，仅接续确切原会话。
@@ -74,7 +74,7 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	if len(args) >= 2 && args[0] == "session" && args[1] == "plugin" {
 		return sessionPlugin(p, *stateDir, args[2:])
 	}
-	if args[0] == "start" || args[0] == "stop" || args[0] == "restart" || args[0] == "status" || args[0] == "doctor" || args[0] == "service-install" || args[0] == "service-remove" || args[0] == "service-forget" {
+	if args[0] == "start" || args[0] == "run" || args[0] == "stop" || args[0] == "restart" || args[0] == "status" || args[0] == "doctor" || args[0] == "service-install" || args[0] == "service-remove" || args[0] == "service-forget" {
 		return lifecycle(p, *stateDir, args)
 	}
 	if args[0] == "login" || args[0] == "logout" || args[0] == "session" {
