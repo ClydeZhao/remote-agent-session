@@ -63,6 +63,27 @@ def run_limited():
         raise ctypes.WinError(ctypes.get_last_error())
     if not api.CreateRestrictedToken(token, 4, 0, None, 0, None, 0, None, ctypes.byref(limited)):
         raise ctypes.WinError(ctypes.get_last_error())
+    length = wintypes.DWORD()
+    api.GetTokenInformation.argtypes = [wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD, ctypes.POINTER(wintypes.DWORD)]
+    api.GetTokenInformation(token, 1, None, 0, ctypes.byref(length))
+    user = ctypes.create_string_buffer(length.value)
+    if not api.GetTokenInformation(token, 1, user, length, ctypes.byref(length)):
+        raise ctypes.WinError(ctypes.get_last_error())
+    user_sid = ctypes.cast(user, ctypes.POINTER(Sid)).contents.sid
+    user_text = wintypes.LPWSTR()
+    api.ConvertSidToStringSidW.argtypes = [ctypes.c_void_p, ctypes.POINTER(wintypes.LPWSTR)]
+    if not api.ConvertSidToStringSidW(user_sid, ctypes.byref(user_text)):
+        raise ctypes.WinError(ctypes.get_last_error())
+    descriptor = ctypes.c_void_p()
+    api.ConvertStringSecurityDescriptorToSecurityDescriptorW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, ctypes.POINTER(ctypes.c_void_p), ctypes.c_void_p]
+    if not api.ConvertStringSecurityDescriptorToSecurityDescriptorW("D:(A;;GA;;;" + user_text.value + ")(A;;GA;;;SY)", 1, ctypes.byref(descriptor), None):
+        raise ctypes.WinError(ctypes.get_last_error())
+    present, inherited, acl = wintypes.BOOL(), wintypes.BOOL(), ctypes.c_void_p()
+    api.GetSecurityDescriptorDacl.argtypes = [ctypes.c_void_p, ctypes.POINTER(wintypes.BOOL), ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(wintypes.BOOL)]
+    if not api.GetSecurityDescriptorDacl(descriptor, ctypes.byref(present), ctypes.byref(acl), ctypes.byref(inherited)):
+        raise ctypes.WinError(ctypes.get_last_error())
+    if not api.SetTokenInformation(limited, 6, ctypes.byref(acl), ctypes.sizeof(acl)):
+        raise ctypes.WinError(ctypes.get_last_error())
     sid = ctypes.c_void_p()
     if not api.ConvertStringSidToSidW("S-1-16-8192", ctypes.byref(sid)):
         raise ctypes.WinError(ctypes.get_last_error())
