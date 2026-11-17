@@ -59,6 +59,7 @@ def pg():
         try:
             subprocess.run(
                 ["alembic", "upgrade", "head"],
+                timeout=60,
                 check=True,
                 env={**os.environ, "REMOTE_AGENT_SESSION_DATABASE_URL": url},
             )
