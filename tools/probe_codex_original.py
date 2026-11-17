@@ -257,7 +257,7 @@ class Model(http.server.BaseHTTPRequestHandler):
             output = {"id": "fc_" + response_id, "type": "function_call", "call_id": "call_" + response_id, "name": name, "arguments": json.dumps(arguments), "status": "completed"}
             Model.approval_call = output["call_id"]
         else:
-            text = "RAS_DENIED" if "RAS_APPROVAL" in prompt else "RAS_RECONNECTED" if "RAS_RECONNECT" in prompt else "RAS_REMOTE" if "RAS_REMOTE" in prompt else "RAS_ORIGINAL"
+            text = "RAS_DENIED" if "RAS_APPROVAL" in prompt else "RAS_RECONNECTED" if "RAS_RECONNECT" in prompt else "RAS_ASSISTANT_ONLY_ANSWER" if "RAS_REMOTE_REQUEST" in prompt else "RAS_REMOTE" if "RAS_REMOTE" in prompt else "RAS_ORIGINAL"
             output = {"id": "msg_" + response_id, "type": "message", "role": "assistant", "status": "completed", "content": [{"type": "output_text", "text": text, "annotations": []}]}
         self.sse("response.output_item.added", {"output_index": 0, "item": output})
         self.sse("response.output_item.done", {"output_index": 0, "item": output})
@@ -319,7 +319,7 @@ def probe_tui(args, env, endpoint, work, client):
                 output.append(chunk)
                 if "\x1b[6n" in chunk:
                     terminal.write("\x1b[1;1R")
-        except EOFError:
+        except (EOFError, OSError):
             pass
     threading.Thread(target=read, daemon=True).start()
     try:
@@ -334,19 +334,27 @@ def probe_tui(args, env, endpoint, work, client):
         assert thread, "CLI did not create a loaded thread: " + "".join(output)[-5000:]
         deadline = time.monotonic() + 20
         while time.monotonic() < deadline:
-            turns = client.call("thread/turns/list", {"threadId": thread, "itemsView": "full", "limit": 50})["data"]
+            try:
+                turns = client.call("thread/turns/list", {"threadId": thread, "itemsView": "full", "limit": 50})["data"]
+            except RuntimeError as error:
+                if "not materialized yet" not in str(error):
+                    raise
+                time.sleep(0.2)
+                continue
             if turns and any(x["type"] == "agentMessage" and x.get("text") == "RAS_ORIGINAL" for x in turns[0]["items"]):
                 break
             time.sleep(0.2)
         else:
             raise AssertionError("CLI original prompt did not complete: " + "".join(output)[-5000:])
         assert terminal.isalive()
-        remote = client.call("turn/start", {"threadId": thread, "clientUserMessageId": "probe-tui-remote", "input": [{"type": "text", "text": "RAS_REMOTE", "text_elements": []}]})
+        assert "RAS_ASSISTANT_ONLY_ANSWER" not in "".join(output)
+        output_start = len(output)
+        remote = client.call("turn/start", {"threadId": thread, "clientUserMessageId": "probe-tui-remote", "input": [{"type": "text", "text": "RAS_REMOTE_REQUEST", "text_elements": []}]})
         deadline = time.monotonic() + 20
         while time.monotonic() < deadline:
             try:
-                check_turn(client, thread, remote["turn"]["id"], "probe-tui-remote", "RAS_REMOTE", "RAS_REMOTE")
-                if "RAS_REMOTE" in "".join(output):
+                check_turn(client, thread, remote["turn"]["id"], "probe-tui-remote", "RAS_REMOTE_REQUEST", "RAS_ASSISTANT_ONLY_ANSWER")
+                if "RAS_ASSISTANT_ONLY_ANSWER" in "".join(output[output_start:]):
                     break
             except (StopIteration, AssertionError):
                 pass
