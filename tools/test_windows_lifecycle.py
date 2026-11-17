@@ -133,7 +133,9 @@ $FileRule = [Security.AccessControl.FileSystemAccessRule]::new($Identity.User, '
 $FileAcl.AddAccessRule($FileRule)
 Set-Acl -LiteralPath $ConfigPath -AclObject $FileAcl
 """
-            result = subprocess.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script], env=dict(os.environ, RAS_TEST_CONFIG=str(config)), capture_output=True, text=True)
+            env = {key: value for key, value in os.environ.items() if key.casefold() != "psmodulepath"}
+            env["RAS_TEST_CONFIG"] = str(config)
+            result = subprocess.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script], env=env, capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, msg="PowerShell file ACL setup failed:\n" + result.stdout + result.stderr)
             self.assertEqual(windows.config_app(state, "live"), "synthetic_app")
             windows.secure_path(config)

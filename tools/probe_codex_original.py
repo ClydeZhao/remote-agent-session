@@ -306,6 +306,11 @@ def check_turn(client, thread, turn_id, client_id, prompt, answer):
     return turn
 
 
+def run_production_relay(env, endpoint, thread):
+    relay_env = {**env, "REMOTE_AGENT_SESSION_TEST_CONTROL_SOCKET": str(endpoint), "REMOTE_AGENT_SESSION_TEST_OWNED_THREAD": thread, "REMOTE_AGENT_SESSION_TEST_CONTROL_MUTATIONS": "1"}
+    subprocess.run(["go", "test", "./internal/relay", "-run", "^Test(LiveWindowsOriginalRelay|WindowsControlSocketACL|WindowsCodexRequiresExplicitBackend)$", "-count=1", "-v"], cwd=Path(__file__).resolve().parents[1] / "cli", env=relay_env, check=True, timeout=120)
+
+
 def probe_tui(args, env, endpoint, work, client):
     from winpty import PtyProcess
     before = set(client.call("thread/loaded/list", {})["data"])
@@ -362,6 +367,9 @@ def probe_tui(args, env, endpoint, work, client):
         else:
             raise AssertionError("CLI did not observe the remote turn: " + "".join(output)[-5000:])
         assert terminal.isalive()
+        if args.production_relay:
+            run_production_relay(env, endpoint, thread)
+            assert terminal.isalive()
         emit("real_windows_cli_original_and_remote_input", passed=True, thread_id=thread, cli_pid=terminal.pid, explicit_remote=True)
     finally:
         terminal.close(force=True)
@@ -452,9 +460,8 @@ def main(args):
         assert done["params"]["turn"]["id"] == continued["turn"]["id"]
         check_turn(reconnected, thread, continued["turn"]["id"], "probe-reconnect", "RAS_RECONNECT", "RAS_RECONNECTED")
         emit("relay_reconnect_keeps_original", passed=True, owner_pid=owner.pid)
-        if args.production_relay:
-            relay_env = {**env, "REMOTE_AGENT_SESSION_TEST_CONTROL_SOCKET": str(endpoint), "REMOTE_AGENT_SESSION_TEST_OWNED_THREAD": thread, "REMOTE_AGENT_SESSION_TEST_CONTROL_MUTATIONS": "1"}
-            subprocess.run(["go", "test", "./internal/relay", "-run", "^Test(LiveWindowsOriginalRelay|WindowsControlSocketACL|WindowsCodexRequiresExplicitBackend)$", "-count=1", "-v"], cwd=Path(__file__).resolve().parents[1] / "cli", env=relay_env, check=True, timeout=120)
+        if args.production_relay and not args.tui:
+            run_production_relay(env, endpoint, thread)
         if args.tui:
             probe_tui(args, env, endpoint, work, reconnected)
         emit("result", passed=True, model="local fixture", desktop_tested=False, feishu_tested=False)

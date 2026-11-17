@@ -6,7 +6,16 @@ from pathlib import Path
 def private_file(path):
     path = Path(path)
     info = path.lstat()
-    if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o077:
+    if not stat.S_ISREG(info.st_mode):
+        raise ValueError("Configuration must be an owned private regular file")
+    if os.name == "nt":
+        from remote_agent_session.windows_security import secure_path
+
+        try:
+            secure_path(path)
+        except RuntimeError as exc:
+            raise ValueError("Configuration must be an owned private regular file") from exc
+    elif info.st_uid != os.getuid() or info.st_mode & 0o077:
         raise ValueError("Configuration must be an owned private regular file")
     return path
 

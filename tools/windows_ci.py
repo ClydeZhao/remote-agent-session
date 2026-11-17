@@ -43,6 +43,11 @@ def main():
         port = probe.getsockname()[1]
     def lifecycle(action, expected=0, state=service):
         result = subprocess.run([str(binary), '--json', action, '--service-state-dir', str(state), '--mode', 'offline', '--port', str(port)], env=env, capture_output=True, text=True, timeout=120)
+        if result.returncode != expected:
+            for name in ('startup-status.json', 'service.log', 'supervisor.log'):
+                log = state / name
+                if log.exists():
+                    print(name + ': ' + log.read_text(errors='replace')[-18000:], flush=True)
         assert result.returncode == expected, (action, result.stdout, result.stderr)
         return json.loads(result.stdout)
     try:
