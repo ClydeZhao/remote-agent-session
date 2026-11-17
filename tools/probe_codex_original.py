@@ -315,9 +315,6 @@ def main(args):
         emit("binary", version=version)
         endpoint = home / "app-server-control" / "app-server-control.sock"
         if args.managed:
-            settings = home / "app-server-daemon" / "settings.json"
-            settings.parent.mkdir(exist_ok=True)
-            settings.write_text(json.dumps({"remoteControlEnabled": False, "updater": {"autoUpdateEnabled": False}}), encoding="utf-8")
             owner = ManagedOwner(args.codex, env, log)
             endpoint = owner.endpoint
         else:
