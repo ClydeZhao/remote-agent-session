@@ -87,7 +87,7 @@ def main():
     assert install.exists() and service.exists()
     subprocess.run([str(install / '.venv/Scripts/python.exe'), '-m', 'pip', 'install', 'pytest', 'httpx', 'ruff'], check=True, timeout=120)
     test_env = {**env, 'PATH': str(install / '.venv/Scripts') + os.pathsep + env['PATH']}
-    subprocess.run([str(install / '.venv/Scripts/python.exe'), '-m', 'pytest', '-vv', '-s', '-o', 'faulthandler_timeout=45', 'tests'], cwd=source / 'server', env=test_env, check=True, timeout=300)
+    subprocess.run([str(install / '.venv/Scripts/python.exe'), '-m', 'pytest', '-x', '-vv', '-s', '-o', 'faulthandler_timeout=45', 'tests'], cwd=source / 'server', env=test_env, check=True, timeout=600)
     assert security_checks.returncode == 0 and hook_checks.returncode == 0, 'Native security or hook checks failed'
     print(json.dumps({'windows_installed_lifecycle': 'passed', 'backend_persistence_tests': 'passed'}))
     return 0

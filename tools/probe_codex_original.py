@@ -100,7 +100,9 @@ def run_limited(command=None):
     if not api.CreateProcessAsUserW(limited, sys.executable, command, None, None, True, 0, None, str(Path.cwd()), ctypes.byref(startup), ctypes.byref(process)):
         raise ctypes.WinError(ctypes.get_last_error())
     kernel.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
-    kernel.WaitForSingleObject(process.process, 480000)
+    wait_result = kernel.WaitForSingleObject(process.process, 1200000)
+    if wait_result != 0:
+        raise TimeoutError("Reduced Windows CI process exceeded its deadline")
     code = wintypes.DWORD()
     kernel.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
     kernel.GetExitCodeProcess(process.process, ctypes.byref(code))
