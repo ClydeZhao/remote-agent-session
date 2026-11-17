@@ -24,6 +24,7 @@ def main():
     root = Path(args.root).resolve()
     root.mkdir(parents=True, exist_ok=True)
     source = Path(__file__).resolve().parents[1]
+    subprocess.run(['go', 'test', './internal/app', '-run', '^TestWindowsHook', '-count=1', '-v'], cwd=source / 'cli', check=True, timeout=120)
     release = root / 'release'
     result = subprocess.check_output([sys.executable, str(source / 'tools/build_release.py'), '--output', str(release)], text=True)
     archive = Path(json.loads(result)['archive'])

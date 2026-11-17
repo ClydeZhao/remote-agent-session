@@ -3,10 +3,12 @@ package relay
 import (
 	"context"
 	"errors"
+	"net"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/google/uuid"
 	"golang.org/x/sys/windows"
@@ -75,6 +77,7 @@ func TestLiveWindowsOriginalRelay(t *testing.T) {
 		t.Helper()
 		client, err := OpenCodexForThread(ctx, "must-not-start-an-executor", thread)
 		if err != nil {
+			logWindowsControlSocketFixture(t, socket)
 			t.Fatal(err)
 		}
 		return client
@@ -149,4 +152,53 @@ func TestLiveWindowsOriginalRelay(t *testing.T) {
 		t.Fatalf("authorization callbacks=%d, expected 4", authorized)
 	}
 	t.Log("production relay verified original-session source IDs, authorization, remote input, interrupt, outcome and reconnect")
+}
+
+func logWindowsControlSocketFixture(t *testing.T, socket string) {
+	t.Helper()
+	if os.Getenv("REMOTE_AGENT_SESSION_TEST_CONTROL_MUTATIONS") != "1" || socket != os.Getenv("REMOTE_AGENT_SESSION_TEST_CONTROL_SOCKET") {
+		return
+	}
+	user, err := windows.GetCurrentProcessToken().GetTokenUser()
+	if err != nil {
+		t.Logf("fixture token query: %v", err)
+		return
+	}
+	for path, depth := socket, 0; depth < 32; path, depth = filepath.Dir(path), depth+1 {
+		name, err := windows.UTF16PtrFromString(path)
+		if err != nil {
+			t.Logf("fixture path depth=%d: %v", depth, err)
+			return
+		}
+		handle, err := windows.CreateFile(name, windows.READ_CONTROL|windows.FILE_READ_ATTRIBUTES, windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE, nil, windows.OPEN_EXISTING, windows.FILE_FLAG_OPEN_REPARSE_POINT|windows.FILE_FLAG_BACKUP_SEMANTICS, 0)
+		if err != nil {
+			t.Logf("fixture open depth=%d: %v", depth, err)
+		} else {
+			var tag struct {
+				Attributes uint32
+				Tag        uint32
+			}
+			err := windows.GetFileInformationByHandleEx(handle, windows.FileAttributeTagInfo, (*byte)(unsafe.Pointer(&tag)), uint32(unsafe.Sizeof(tag)))
+			t.Logf("fixture attributes depth=%d: attrs=%#x tag=%#x error=%v", depth, tag.Attributes, tag.Tag, err)
+			sd, err := windows.GetSecurityInfo(handle, windows.SE_FILE_OBJECT, windows.OWNER_SECURITY_INFORMATION|windows.DACL_SECURITY_INFORMATION)
+			if err != nil {
+				t.Logf("fixture security depth=%d: %v", depth, err)
+			} else {
+				t.Logf("fixture security depth=%d: descriptor=%s privateSafe=%v ancestorSafe=%v", depth, sd.String(), controlSocketSecuritySafe(sd, user.User.Sid, true), controlSocketSecuritySafe(sd, user.User.Sid, false))
+			}
+			windows.CloseHandle(handle)
+		}
+		if filepath.Dir(path) == path {
+			break
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	conn, err := (&net.Dialer{}).DialContext(ctx, "unix", socket)
+	if err != nil {
+		t.Logf("fixture direct AF_UNIX connect: %v", err)
+	} else {
+		t.Log("fixture direct AF_UNIX connect succeeded")
+		conn.Close()
+	}
 }
